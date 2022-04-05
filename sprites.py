@@ -72,8 +72,11 @@ class SpaceShip(sprite.Sprite):
 
     def changespeed(self, x, y):
         """ Change the speed of the player. """
+        if abs(self.change_x + x) > constants.MAX_SPEED:
+            self.change_x = 0    
         self.change_x += x
         self.change_y += y
+        
 
     def update(self):
         self.rect.x += self.change_x

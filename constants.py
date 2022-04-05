@@ -26,3 +26,5 @@ LEVEL2_IMAGE_ALIEN = "alien_level2.png"
 # Set the height and width of the screen
 screen_width = 800
 screen_height = 600
+
+MAX_SPEED = 3
