@@ -24,11 +24,9 @@ MAX_ALIEN_LEVEL1 = 20
 LEVEL1_IMAGE_BACKGROUND = "asteroid.png"
 LEVEL1_IMAGE_ALIEN = "alien_level1.png"
 
-MAX_ALIEN_LEVEL2 = 3
+MAX_ALIEN_LEVEL2 = 4
 LEVEL2_IMAGE_BACKGROUND = "sun.png"
 LEVEL2_IMAGE_ALIEN = "alien_level2.png"
-
-BLINK_EVENT = pygame.USEREVENT + 0
 
 # Set the height and width of the screen
 screen_width = 800
@@ -168,7 +166,7 @@ class Level1(Level):
         
             # Set a random location for the block
             block.rect.x += random.randrange(screen_width - 100)
-            block.rect.y = random.randrange(screen_height - 200)
+            block.rect.y = random.randrange(screen_height) - 400
         
             # Add the block to the list of objects
             block_list.add(block)
@@ -199,7 +197,7 @@ class Level2(Level):
             
             # Set a random location for the alien
             block.rect.x = random_x * 100
-            block.rect.y = 0
+            block.rect.y = random.randrange(screen_height)  - 600
 
             # Add the block to the list of objects
             block_list.add(block)
@@ -232,13 +230,13 @@ class Level3(Level):
         self.level = 3
         
     def callback_init_alien(self, block_list, all_sprites_list):
-        for i in range(MAX_ALIEN_LEVEL1):
+        for i in range(MAX_ALIEN_LEVEL1 + 5):
             # This represents a block
             block = Alien(LEVEL1_IMAGE_ALIEN)
         
             # Set a random location for the block
             block.rect.x += random.randrange(screen_width - 100)
-            block.rect.y = random.randrange(screen_height - 200)
+            block.rect.y = random.randrange(screen_height)  - 600
         
             # Add the block to the list of objects
             block_list.add(block)
@@ -305,8 +303,6 @@ class AlienGame():
         off_text_surface = gameover_font.render("", True, YELLOW)
     
         blink_surfaces = cycle([on_text_surface, off_text_surface])
-        blink_surface = next(blink_surfaces)
-        pygame.time.set_timer(BLINK_EVENT, 1000)
         
         background_image = pygame.image.load(path.join(IMAGE_DIR,game_level.background_image)).convert()
     
@@ -318,15 +314,13 @@ class AlienGame():
                     quit()
                 if event.type == pygame.KEYDOWN:
                     wait = False    
-                if event.type == BLINK_EVENT:
-                    blink_surface = next(blink_surfaces)
-                    self.screen.blit(background_image, [0, 0])
-               
+                    
+            self.screen.blit(background_image, [0, 0])          
             self.show_score(game_level.level)
-            self.screen.blit(blink_surface, blink_rect)
+            self.screen.blit(next(blink_surfaces), blink_rect)
             pygame.display.update()
                  
-            pygame.display.flip()
+            pygame.time.delay(500)
             
         self.score = 0
 
@@ -485,7 +479,7 @@ alien_game = AlienGame()
             
 game_on = True
 win = True
-levels = [Level1(), Level2(), Level3()]
+levels = [Level1(),Level2(), Level2(), Level3(),Level3()]
 while game_on:  
     for level in levels:
         win = alien_game.run_level(level)
