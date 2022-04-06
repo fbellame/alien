@@ -7,21 +7,27 @@ import constants
 
 
 class Alien(sprite.Sprite):
-    def __init__(self, png_image):
+    def __init__(self, image_dict):
         sprite.Sprite.__init__(self)
 
-        # Load the image
-        self.image = pygame.image.load(path.join(constants.IMAGE_DIR,png_image)).convert()
+        # Load the image of full health
+        self.health = 100
+        self.images = image_dict
+        self.image = self.images[self.health]
     
         # Set our transparent color
         self.image.set_colorkey(constants.WHITE)
 
         self.rect = self.image.get_rect()
         
-        self.health = 100
-        
         # random -1 or +1
         self.deltax = [-1,1][random.randrange(2)]
+        
+    def update(self): 
+        
+        # update image to reflect health
+        self.image = self.images[self.health]
+
         
 class Explosion(sprite.Sprite):
     def __init__(self, center, size) -> None:

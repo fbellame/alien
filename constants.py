@@ -17,11 +17,15 @@ EXPLOSITION_IMAGE = 'regularExplosion0{}.png'
 
 MAX_ALIEN_LEVEL1 = 20
 LEVEL1_IMAGE_BACKGROUND = "asteroid.png"
-LEVEL1_IMAGE_ALIEN = "alien_level1.png"
+LEVEL1_IMAGE_ALIEN = "alien_small.png"
 
 MAX_ALIEN_LEVEL2 = 4
 LEVEL2_IMAGE_BACKGROUND = "sun.png"
-LEVEL2_IMAGE_ALIEN = "alien_level2.png"
+LEVEL2_IMAGE_ALIEN = "alien_big0{}.png"
+
+LEVEL4_IMAGE_BACKGROUND = "nebuleuse.png"
+LEVEL4_IMAGE_ALIEN = "alien_4.png"
+MAX_ALIEN_LEVEL4 = 20
 
 # Set the height and width of the screen
 screen_width = 800

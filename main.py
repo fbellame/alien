@@ -6,7 +6,7 @@ from itertools import cycle
 
 import constants
 from sprites import SpaceShip, Explosion, Bullet
-from levels import Level, Level1, Level2, Level3
+from levels import Level, Level1, Level2, Level3, Level4
 
 
 class AlienGame():
@@ -227,7 +227,9 @@ alien_game = AlienGame()
             
 game_on = True
 win = True
-levels = [Level1(),Level2(), Level2(), Level3(),Level3()]
+levels = [Level1(1),Level2(1), Level3(1), Level4(1),Level1(2),Level2(2), 
+          Level3(2), Level4(2),Level1(3),Level2(3), Level3(3), 
+          Level4(3),Level1(4),Level2(4), Level3(4), Level4(4)]
 while game_on:  
     for level in levels:
         win = alien_game.run_level(level)
