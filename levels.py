@@ -13,20 +13,13 @@ class Level():
         self.speed = speed
         
         image_name = constants.LEVEL1_IMAGE_ALIEN
-        img = pygame.image.load(path.join(constants.IMAGE_DIR,image_name)).convert()
+        img = pygame.image.load(path.join(constants.IMAGE_DIR,image_name)).convert_alpha()
         img.set_colorkey(constants.WHITE)
         self.alien_smal_img = {100: img}
         
     def callback_init_alien(self, block_list, all_sprites_list):
-        self.background_image = constants.LEVEL1_IMAGE_BACKGROUND
-        self.damage = 100
-        self.level = 1
+        pass
         
-        image_name = constants.LEVEL1_IMAGE_ALIEN
-        img = pygame.image.load(path.join(constants.IMAGE_DIR,image_name)).convert()
-        img.set_colorkey(constants.WHITE)
-        self.alien_smal_img = {100: img}
-    
     def callback_move_alien(self, alien):
         pass
     
@@ -66,7 +59,7 @@ class Level2(Level):
         # initialize the big alien images according to the health
         for i in range(0,10):
             image_name = constants.LEVEL2_IMAGE_ALIEN.format(i)
-            img = pygame.image.load(path.join(constants.IMAGE_DIR,image_name)).convert()
+            img = pygame.image.load(path.join(constants.IMAGE_DIR,image_name)).convert_alpha()
             img.set_colorkey(constants.WHITE)
             self.alien_big_img[100 - i*10] = img
      
@@ -157,7 +150,8 @@ class Level4(Level):
         
         # initialize the big alien images according to the health
         image_name = constants.LEVEL4_IMAGE_ALIEN
-        img = pygame.image.load(path.join(constants.IMAGE_DIR,image_name)).convert()
+        img = pygame.image.load(path.join(constants.IMAGE_DIR,image_name)).convert_alpha()
+        
         img.set_colorkey(constants.WHITE)
         self.alien_3_img[100] = img
         

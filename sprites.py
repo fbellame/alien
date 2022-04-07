@@ -65,7 +65,7 @@ class SpaceShip(sprite.Sprite):
         sprite.Sprite.__init__(self)
     
         # Load the image
-        self.image = pygame.image.load(path.join(constants.IMAGE_DIR,constants.SPACESHIP_IMAGE)).convert()
+        self.image = pygame.image.load(path.join(constants.IMAGE_DIR,constants.SPACESHIP_IMAGE)).convert_alpha()
     
         # Set our transparent color
         self.image.set_colorkey(constants.WHITE)
