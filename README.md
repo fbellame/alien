@@ -1,27 +1,34 @@
 # ALIEN // ECLIPSE
 
-A neon synthwave reimagining of the bundled assets — a vertical-scrolling shooter
-in five hand-shaped stages ending with a phased boss that visibly disintegrates
-through the `alien_big00…09` damage spritesheet.
+A neon synthwave vertical-scrolling shooter built with HTML5 Canvas. Dodge and
+destroy five waves of enemies and face an escalating boss that visibly
+disintegrates through a 10-stage damage sprite sequence.
 
-Built as a single-file HTML5 Canvas + Web Audio game. No dependencies, no build
-step, ~1k lines of JavaScript.
+- **No dependencies, no build step.** Single HTML file, ~2000 lines of JavaScript.
+- **Retro arcade feel with modern juice.** Screen shake, hit flashes, particle trails,
+  pitch-shifted audio, parallax starfield, slow-motion death sequences.
+- **Quick to pick up, satisfying to master.** Charge shots, dash dodges, combo system,
+  power-ups. Best score persists between sessions.
 
-![title](images/spaceship.png)
+![Gameplay screenshot showing the neon synthwave aesthetic: HUD with score, enemies
+above a glowing nebula, the player ship, and magenta particle effects against a
+dark starfield with purple/cyan tints.](images/game.png)
 
-## Run
-
-The game uses `fetch` to decode audio buffers (so the laser can be pitch-shifted
-per shot and the music can duck on death), so it needs a real HTTP server —
-opening `index.html` directly via `file://` will load images but skip audio.
+## Quick Start
 
 ```bash
+# Start a local server
 python3 -m http.server 8000
-# then open http://localhost:8000
+
+# Open the game
+# → http://localhost:8000
 ```
 
-That's it. Click **Engage** (a one-time gesture is required to unlock Web Audio)
-and play.
+Click **Engage** to start. (One-time click required to unlock Web Audio for sound.)
+
+**Why a server?** The game uses Web Audio API to pitch-shift laser sounds per shot and
+duck music on death. `fetch` requests for audio decoding require HTTP; `file://` URLs
+will load but skip sound.
 
 ## Controls
 
@@ -35,8 +42,25 @@ and play.
 
 **Charge shot:** tap Space for a quick double-shot, or hold for ~1.1s — when the
 magenta ring blooms around the ship, release for a piercing beam that tears
-through anything in its column. **Dash** is your panic button: 0.16s of
-i-frames, a short cooldown, and an afterimage trail so you know it fired.
+through anything in its column. Useful for tough mid-bosses and tight formations.
+
+**Dash** is your panic button: press Shift for 0.16s of i-frames (invulnerability),
+a short cooldown, and an afterimage trail. Use it to slip through bullet walls.
+
+## Scoring & Progression
+
+- **Combo multiplier (×1 to ×8):** Kill another enemy within 2s of your last kill to
+  build combo. Each level boosts your score on the next kill. Multiplier caps at ×8
+  and resets if you miss a chain.
+- **Score bonuses:** Clear a stage → +1000. Defeat the Warden → +2000. Defeat the
+  Queen → +5000 × current multiplier.
+- **Lives:** Start with 3. Each death (unless a Shield absorbs it) costs one life.
+  Game over at 0 lives.
+- **Best score:** Automatically saved to browser storage. Persists across sessions.
+
+## The Five Stages
+
+Progress through escalating difficulty:
 
 ## The arc
 
@@ -93,14 +117,45 @@ you an out for the bullet patterns that would otherwise be unfair. Together
 they create a tempo that keeps the runs interesting even when you've memorized
 the waves.
 
-## File layout
+## Tips & Tricks
+
+- **Momentum matters:** Keep moving! The parallax starfield gives a sense of speed.
+  Dancing side-to-side through formations feels better than standing still.
+- **Charge shots shine against tough enemies:** The Warden and Queen take heavy
+  damage from charged beams. Build your charge bar between waves and unleash it
+  when you see a mini-boss or boss phase shift.
+- **Bomb power-ups clear the board.** Grab them and use on-demand to get out of
+  tight spots — they hit everything on screen and clear enemy bullets.
+- **Shield is insurance, not a panic button.** It absorbs one hit. Save it for
+  patterns you know you'll struggle with.
+
+## File Layout
 
 ```
-index.html    page shell, audio gate, CRT overlay
-game.js       everything: loader, audio, input, entities, stages, render
-images/       bundled sprites (untouched)
-sounds/       bundled audio (untouched)
+index.html       page shell (HTML + CSS for layout, scanlines, vignette)
+game.js          game engine (~2000 lines)
+  ├ loader        fetch image/audio, auto-chroma-key sprites, crop scenery
+  ├ audio         Web Audio API with pitch-shift, ducking, music fade
+  ├ input         keyboard listener, frame-local key state
+  ├ particles     pool-based emission system with drag/fade
+  ├ entities      Player, Enemy, Boss, Bullet, Explosion, PowerUp, Asteroid
+  ├ stages        data-driven wave definitions + event system
+  └ game loop      state machine (TITLE/PLAYING/PAUSED/DYING/GAME_OVER/VICTORY)
+images/          bundled sprites (untouched source assets)
+sounds/          bundled audio (untouched source assets)
 ```
 
-The original Python+pygame project is preserved at the previous commit if you
-want to compare.
+## Browser Support
+
+Tested on modern Chrome, Firefox, Safari (desktop & mobile). Requires:
+- HTML5 Canvas with `getImageData` / `putImageData` (for sprite post-processing)
+- Web Audio API (for sound)
+- ES6 (arrow functions, `const`/`let`, template strings)
+
+## Inspiration & Credits
+
+Built to the spec of [prompt_v2.md](prompt_v2.md) — a challenge to make a
+beautiful, polished arcade game using only the bundled sprite and audio assets
+(no external libraries, no downloads, no new art). The neon synthwave aesthetic
+and arcade juice (screen shake, hit flashes, time dilation) aim to make every
+shot and collision feel rewarding.
