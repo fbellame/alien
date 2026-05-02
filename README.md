@@ -10,6 +10,10 @@ disintegrates through a 10-stage damage sprite sequence.
 - **Quick to pick up, satisfying to master.** Charge shots, dash dodges, combo system,
   power-ups. Best score persists between sessions.
 
+![Gameplay screenshot showing the neon synthwave aesthetic: HUD with score, enemies
+above a glowing nebula, the player ship, and magenta particle effects against a
+dark starfield with purple/cyan tints.](images/game.png)
+
 ## Quick Start
 
 ```bash
