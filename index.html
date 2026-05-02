@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ALIEN // ECLIPSE</title>
+<style>
+  :root {
+    --bg-0: #07021a;
+    --bg-1: #14063a;
+    --neon-cyan: #5ef0ff;
+    --neon-pink: #ff2bd6;
+    --neon-violet: #b073ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: radial-gradient(ellipse at 50% 30%, var(--bg-1) 0%, var(--bg-0) 70%);
+    color: var(--neon-cyan);
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    cursor: default;
+  }
+  #stage {
+    position: fixed; inset: 0;
+    display: grid; place-items: center;
+  }
+  /* Canvas: pixel art crisp, scale to window */
+  #game {
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    background: #000;
+    box-shadow:
+      0 0 60px rgba(94, 240, 255, 0.18),
+      0 0 120px rgba(255, 43, 214, 0.10),
+      inset 0 0 80px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(94, 240, 255, 0.25);
+    max-width: 100vw; max-height: 100vh;
+  }
+  /* CRT scanline + vignette overlay */
+  #stage::after {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.0) 0px,
+        rgba(0,0,0,0.0) 2px,
+        rgba(0,0,0,0.18) 3px,
+        rgba(0,0,0,0.0) 4px
+      ),
+      radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%);
+    mix-blend-mode: multiply;
+    z-index: 5;
+  }
+  #gate {
+    position: fixed; inset: 0;
+    display: grid; place-items: center;
+    background: radial-gradient(ellipse at 50% 50%, rgba(20,6,58,0.92), rgba(7,2,26,0.98));
+    z-index: 10;
+    transition: opacity 600ms ease;
+  }
+  #gate.hidden { opacity: 0; pointer-events: none; }
+  .gate-card {
+    text-align: center;
+    padding: 32px 40px;
+    border: 1px solid rgba(94, 240, 255, 0.35);
+    box-shadow:
+      0 0 24px rgba(94, 240, 255, 0.18),
+      inset 0 0 24px rgba(255, 43, 214, 0.08);
+    background: rgba(7, 2, 26, 0.6);
+    backdrop-filter: blur(2px);
+  }
+  .gate-card h1 {
+    font-size: 42px; letter-spacing: 8px; font-weight: 800;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 0 18px rgba(255, 43, 214, 0.35);
+    margin-bottom: 8px;
+  }
+  .gate-card .sub {
+    color: var(--neon-violet);
+    letter-spacing: 4px; font-size: 12px; margin-bottom: 20px;
+  }
+  .gate-card button {
+    background: transparent; color: var(--neon-cyan);
+    border: 1px solid var(--neon-cyan);
+    padding: 12px 22px; letter-spacing: 4px; font-family: inherit;
+    cursor: pointer; font-size: 13px;
+    transition: all 150ms ease;
+    text-shadow: 0 0 8px rgba(94,240,255,0.6);
+  }
+  .gate-card button:hover {
+    background: var(--neon-cyan); color: #07021a;
+    box-shadow: 0 0 24px var(--neon-cyan);
+  }
+  .gate-card .hint {
+    margin-top: 16px; font-size: 10px; color: rgba(176, 115, 255, 0.7);
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="960" height="720"></canvas>
+  </div>
+
+  <div id="gate">
+    <div class="gate-card">
+      <h1>ALIEN // ECLIPSE</h1>
+      <div class="sub">A NEON SYNTHWAVE SHOOTER</div>
+      <button id="start-btn">▶ ENGAGE</button>
+      <div class="hint">arrows / wasd · space fire · hold for charge · shift dash · p pause</div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
