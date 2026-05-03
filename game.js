@@ -1426,6 +1426,7 @@ class Game {
         else if (this.difficulty === 'hard') this.miniboss.hp = this.miniboss.maxHp = 150;
         this.minibossSpawned = true;
         this.enemies.push(this.miniboss);
+        this._endOnMiniboss = true; // stage advances as soon as miniboss dies
         this.audio.duck(1.2, 0.2);
         this.flash('rgba(255,154,60,0.2)', 0.4);
         break;
