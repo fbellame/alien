@@ -1062,7 +1062,82 @@ function STAGE_ECLIPSE(){
     ]
   };
 }
-const STAGES = [STAGE_DRIFT, STAGE_CLUSTER, STAGE_FRACTURE, STAGE_SOLAR, STAGE_ECLIPSE];
+function STAGE_VORTEX(){
+  return {
+    name: 'VI // VORTEX',
+    sub: 'SPIRALING DESCENT',
+    bg: 'nebuleuse',
+    musicTarget: 0.44,
+    events: [
+      { at: 1.0, kind:'wave', spec:{ type:'row', count:7, alien:'small', pattern:'swoop', period:2.2 } },
+      { at: 7.0, kind:'wave', spec:{ type:'arc', count:6, alien:'mid', pattern:'dive', speedY:85 } },
+      { at: 14.0, kind:'wave', spec:{ type:'V', count:8, alien:'small', pattern:'sine', period:1.8 } },
+      { at: 20.0, kind:'wave', spec:{ type:'row', count:5, alien:'mid', pattern:'swoop' } },
+      { at: 27.0, kind:'wave', spec:{ type:'arc', count:7, alien:'small' } },
+      { at: 34.0, kind:'wave', spec:{ type:'V', count:6, alien:'mid', flip:true } },
+      { at: 41.0, kind:'endIfClear' },
+    ]
+  };
+}
+function STAGE_SURGE(){
+  return {
+    name: 'VII // SURGE',
+    sub: 'THE WAVE INTENSIFIES',
+    bg: 'asteroid',
+    musicTarget: 0.48,
+    events: [
+      { at: 1.0, kind:'wave', spec:{ type:'row', count:8, alien:'mid', pattern:'sine', period:2.0 } },
+      { at: 6.0, kind:'wave', spec:{ type:'V', count:7, alien:'mid', pattern:'sine' } },
+      { at: 12.0, kind:'wave', spec:{ type:'arc', count:8, alien:'small', pattern:'drift' } },
+      { at: 18.0, kind:'wave', spec:{ type:'row', count:6, alien:'mid', pattern:'sine', period:2.2 } },
+      { at: 24.0, kind:'wave', spec:{ type:'V', count:9, alien:'mid', flip:true } },
+      { at: 31.0, kind:'wave', spec:{ type:'row', count:7, alien:'small', pattern:'sine' } },
+      { at: 38.0, kind:'announce', text:'ACCELERATING', dur:1.4 },
+      { at: 40.0, kind:'wave', spec:{ type:'arc', count:9, alien:'mid' } },
+      { at: 49.0, kind:'endIfClear' },
+    ]
+  };
+}
+function STAGE_INFERNO(){
+  return {
+    name: 'VIII // INFERNO',
+    sub: 'HEAT RISING',
+    bg: 'sun',
+    musicTarget: 0.50,
+    events: [
+      { at: 1.0, kind:'asteroidsBegin' },
+      { at: 2.0, kind:'wave', spec:{ type:'row', count:6, alien:'small', pattern:'sine' } },
+      { at: 7.0, kind:'wave', spec:{ type:'V', count:7, alien:'mid', pattern:'dive' } },
+      { at: 13.0, kind:'asteroidsHeavy' },
+      { at: 14.0, kind:'announce', text:'GUARDIAN RISING', dur:1.6 },
+      { at: 16.0, kind:'spawnMiniboss' },
+      { at: 22.0, kind:'wave', spec:{ type:'arc', count:6, alien:'small' } },
+      { at: 29.0, kind:'wave', spec:{ type:'row', count:4, alien:'small', pattern:'sine' } },
+      { at: 36.0, kind:'asteroidsEnd' },
+      { at: 999.0, kind:'endWhenMinibossDead' },
+    ]
+  };
+}
+function STAGE_NEXUS(){
+  return {
+    name: 'IX // NEXUS',
+    sub: 'COMMAND CENTER',
+    bg: 'nebuleuse',
+    musicTarget: 0.52,
+    events: [
+      { at: 1.0, kind:'wave', spec:{ type:'row', count:8, alien:'mid', pattern:'sine', period:2.0 } },
+      { at: 6.0, kind:'wave', spec:{ type:'V', count:8, alien:'mid', flip:false } },
+      { at: 12.0, kind:'wave', spec:{ type:'arc', count:9, alien:'small' } },
+      { at: 18.0, kind:'wave', spec:{ type:'row', count:7, alien:'mid', pattern:'sine' } },
+      { at: 24.0, kind:'wave', spec:{ type:'V', count:10, alien:'small' } },
+      { at: 31.0, kind:'announce', text:'FINAL WAVE', dur:1.4 },
+      { at: 33.0, kind:'wave', spec:{ type:'arc', count:8, alien:'mid', pattern:'dive' } },
+      { at: 41.0, kind:'wave', spec:{ type:'row', count:6, alien:'mid', pattern:'sine', period:1.8 } },
+      { at: 49.0, kind:'endIfClear' },
+    ]
+  };
+}
+const STAGES = [STAGE_DRIFT, STAGE_CLUSTER, STAGE_FRACTURE, STAGE_SOLAR, STAGE_ECLIPSE, STAGE_VORTEX, STAGE_SURGE, STAGE_INFERNO, STAGE_NEXUS];
 
 // helper for spawn shapes
 function spawnShape(game, spec){
