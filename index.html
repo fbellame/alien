@@ -95,6 +95,24 @@
     background: var(--neon-cyan); color: #07021a;
     box-shadow: 0 0 24px var(--neon-cyan);
   }
+  .difficulty-btn {
+    background: transparent; color: var(--neon-pink);
+    border: 2px solid var(--neon-pink);
+    padding: 12px 18px; letter-spacing: 3px; font-family: inherit;
+    cursor: pointer; font-size: 12px; font-weight: bold;
+    transition: all 150ms ease;
+    text-shadow: 0 0 8px rgba(255,43,214,0.6);
+    min-width: 120px;
+  }
+  .difficulty-btn:hover {
+    background: var(--neon-pink); color: #07021a;
+    box-shadow: 0 0 20px var(--neon-pink);
+  }
+  .difficulty-btn.selected {
+    background: var(--neon-pink); color: #07021a;
+    box-shadow: 0 0 24px var(--neon-pink);
+    border-color: var(--neon-cyan);
+  }
   .gate-card .hint {
     margin-top: 16px; font-size: 10px; color: rgba(176, 115, 255, 0.7);
     letter-spacing: 2px;
@@ -107,7 +125,17 @@
   </div>
 
   <div id="gate">
-    <div class="gate-card">
+    <div class="gate-card" id="difficulty-screen">
+      <h1>ALIEN // ECLIPSE</h1>
+      <div class="sub">SELECT DIFFICULTY</div>
+      <div style="display:flex;gap:12px;margin:20px 0;justify-content:center;flex-wrap:wrap">
+        <button class="difficulty-btn" data-difficulty="easy">█ EASY</button>
+        <button class="difficulty-btn" data-difficulty="medium">█ MEDIUM</button>
+        <button class="difficulty-btn" data-difficulty="hard">█ HARD</button>
+      </div>
+      <div class="hint" style="margin-top:24px">Choose your challenge level</div>
+    </div>
+    <div class="gate-card" id="start-screen" style="display:none">
       <h1>ALIEN // ECLIPSE</h1>
       <div class="sub">A NEON SYNTHWAVE SHOOTER</div>
       <button id="start-btn">▶ ENGAGE</button>
