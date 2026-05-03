@@ -444,9 +444,9 @@ class ScorePopup {
 }
 
 // ---------- power-up ----------
-const PU = { TRIPLE:'triple', SHIELD:'shield', BOMB:'bomb' };
-const PU_COLOR = { triple: NEON.cyan, shield: NEON.green, bomb: NEON.yellow };
-const PU_LETTER = { triple: 'T', shield: 'S', bomb: 'B' };
+const PU = { TRIPLE:'triple', SHIELD:'shield', BOMB:'bomb', LIFE:'life' };
+const PU_COLOR = { triple: NEON.cyan, shield: NEON.green, bomb: NEON.yellow, life: NEON.pink };
+const PU_LETTER = { triple: 'T', shield: 'S', bomb: 'B', life: '+' };
 
 class PowerUp {
   constructor(x,y,kind){ this.x=x;this.y=y;this.vy=80;this.kind=kind;this.alive=true;this.t=0;this.r=14; }
@@ -716,7 +716,8 @@ class Enemy {
     this.g = game; this.kind = kind;
     this.x=x; this.y=y;
     this.t = 0; this.alive = true; this.flash = 0;
-    this.fireCD = rand(0.8, 2.4);
+    const fireMult = game.difficulty === 'easy' ? 0.6 : game.difficulty === 'hard' ? 1.4 : 1.0;
+    this.fireCD = rand(0.8, 2.4) / fireMult;
     this.pattern = opts.pattern || 'drift';
     this.amp = opts.amp ?? 60;
     this.period = opts.period ?? 2.0;
@@ -1142,7 +1143,10 @@ const STAGES = [STAGE_DRIFT, STAGE_CLUSTER, STAGE_FRACTURE, STAGE_SOLAR, STAGE_E
 // helper for spawn shapes
 function spawnShape(game, spec){
   const alien = spec.alien || 'small';
-  const count = spec.count || 5;
+  let count = spec.count || 5;
+  // apply difficulty modifier to enemy count
+  if (game.difficulty === 'easy'){ count = Math.ceil(count * 0.7); }
+  else if (game.difficulty === 'hard'){ count = Math.ceil(count * 1.3); }
   if (spec.type === 'row'){
     const phaseShift = spec.phaseShift || 0;
     const period = spec.period || 2.4;
@@ -1197,6 +1201,7 @@ class Game {
     this.score = 0;
     this.combo = 1; this.comboT = 0;
     this.bestScore = parseInt(localStorage.getItem('alien_eclipse_best')||'0',10) || 0;
+    this.difficulty = 'medium';
 
     this.player = null;
     this.bullets = []; this.eBullets = []; this.enemies = [];
@@ -1225,6 +1230,9 @@ class Game {
 
   reset(){
     this.player = new Player(this);
+    // adjust lives based on difficulty
+    if (this.difficulty === 'easy') this.player.lives = 5;
+    else if (this.difficulty === 'hard') this.player.lives = 2;
     this.bullets.length=0; this.eBullets.length=0; this.enemies.length=0;
     this.explosions.length=0; this.popups.length=0; this.powerups.length=0;
     this.asteroids.length=0; this.asteroidsActive=false; this.asteroidsHeavy=false;
@@ -1300,7 +1308,7 @@ class Game {
       this.shake(e.kind==='mid'?5:3, 0.12);
       // power-up drop
       if (Math.random() < (e.kind==='mid' ? 0.18 : 0.08)){
-        this.spawnPowerUp(e.x, e.y, pick([PU.TRIPLE, PU.SHIELD, PU.BOMB]));
+        this.spawnPowerUp(e.x, e.y, pick([PU.TRIPLE, PU.SHIELD, PU.BOMB, PU.LIFE]));
       }
     }
   }
@@ -1351,6 +1359,9 @@ class Game {
       for (const a of this.asteroids) a.hit(60, this);
       this.popups.push(new ScorePopup(this.player.x, this.player.y-30, 'BOMB', NEON.yellow));
       this.audio.boom({rate:0.7, vol:0.9});
+    } else if (p.kind === PU.LIFE){
+      this.player.lives = Math.min(this.player.lives + 1, 9);
+      this.popups.push(new ScorePopup(this.player.x, this.player.y-30, '+1 LIFE', NEON.pink));
     }
   }
 
@@ -1410,14 +1421,21 @@ class Game {
         break;
       case 'spawnMiniboss': {
         this.miniboss = new Enemy(this, 'miniboss', W/2, -120, {pattern:'hover', targetY:160, speedY:60, amp:240, phase:0});
+        // adjust miniboss health based on difficulty
+        if (this.difficulty === 'easy') this.miniboss.hp = this.miniboss.maxHp = 60;
+        else if (this.difficulty === 'hard') this.miniboss.hp = this.miniboss.maxHp = 150;
         this.minibossSpawned = true;
         this.enemies.push(this.miniboss);
+        this._endOnMiniboss = true; // stage advances as soon as miniboss dies
         this.audio.duck(1.2, 0.2);
         this.flash('rgba(255,154,60,0.2)', 0.4);
         break;
       }
       case 'spawnBoss': {
         this.boss = new Boss(this);
+        // adjust boss health based on difficulty
+        if (this.difficulty === 'easy') this.boss.maxHp = this.boss.hp = 240;
+        else if (this.difficulty === 'hard') this.boss.maxHp = this.boss.hp = 520;
         this.bossSpawned = true;
         this.audio.duck(1.6, 0.15);
         this.flash('rgba(255,43,214,0.3)', 0.6);
@@ -2038,6 +2056,22 @@ async function main(){
 
   const game = new Game(canvas, assets, audio);
 
+  const difficultyScreen = document.getElementById('difficulty-screen');
+  const startScreen = document.getElementById('start-screen');
+  const difficultyBtns = document.querySelectorAll('.difficulty-btn');
+
+  // difficulty selection
+  difficultyBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      game.difficulty = btn.dataset.difficulty;
+      difficultyBtns.forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      // show start screen after selection
+      difficultyScreen.style.display = 'none';
+      startScreen.style.display = 'block';
+    });
+  });
+
   const startBtn = document.getElementById('start-btn');
   const gate = document.getElementById('gate');
   startBtn.addEventListener('click', () => {
@@ -2049,7 +2083,13 @@ async function main(){
   // also allow Enter on gate
   addEventListener('keydown', (e)=>{
     if (!gate || gate.classList.contains('hidden')) return;
-    if (e.key === 'Enter' || e.key === ' '){ startBtn.click(); }
+    if (e.key === 'Enter' || e.key === ' '){
+      if (startScreen.style.display !== 'none') startBtn.click();
+      else if (difficultyScreen.style.display !== 'none'){
+        const mediumBtn = difficultyScreen.querySelector('[data-difficulty="medium"]');
+        if (mediumBtn) mediumBtn.click();
+      }
+    }
   }, {once:false});
 
   let last = performance.now();
