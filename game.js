@@ -1138,7 +1138,7 @@ function STAGE_NEXUS(){
     ]
   };
 }
-const STAGES = [STAGE_DRIFT, STAGE_CLUSTER, STAGE_FRACTURE, STAGE_SOLAR, STAGE_ECLIPSE, STAGE_VORTEX, STAGE_SURGE, STAGE_INFERNO, STAGE_NEXUS];
+const STAGES = [STAGE_DRIFT, STAGE_CLUSTER, STAGE_FRACTURE, STAGE_SOLAR, STAGE_VORTEX, STAGE_SURGE, STAGE_INFERNO, STAGE_NEXUS, STAGE_ECLIPSE];
 
 // helper for spawn shapes
 function spawnShape(game, spec){
@@ -1308,7 +1308,10 @@ class Game {
       this.shake(e.kind==='mid'?5:3, 0.12);
       // power-up drop
       if (Math.random() < (e.kind==='mid' ? 0.18 : 0.08)){
-        this.spawnPowerUp(e.x, e.y, pick([PU.TRIPLE, PU.SHIELD, PU.BOMB, PU.LIFE]));
+        const dropPool = this.difficulty === 'easy'
+          ? [PU.TRIPLE, PU.SHIELD, PU.BOMB]
+          : [PU.TRIPLE, PU.SHIELD, PU.BOMB, PU.LIFE];
+        this.spawnPowerUp(e.x, e.y, pick(dropPool));
       }
     }
   }
@@ -1785,7 +1788,7 @@ class Game {
     // stage
     ctx.textAlign='right';
     ctx.fillStyle = NEON.cyan;
-    ctx.fillText(this.stage ? this.stage.name : '', W-16, 19);
+    ctx.fillText(this.stage ? `${this.stage.name}  ${this.stageIdx+1}/${STAGES.length}` : '', W-16, 19);
 
     // bottom bar
     ctx.font = 'bold 12px ui-monospace, Menlo, monospace';
