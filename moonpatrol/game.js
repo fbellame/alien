@@ -55,78 +55,6 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-// ── obstacles ─────────────────────────────────────────────────────────────────
-let obstacles = [];
-
-function mulberry32(seed) {
-  return function() {
-    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-
-function generateObstacles(pIdx) {
-  const pl = PLANETS[pIdx];
-  const result = [];
-  let wx = 600;
-  const rng = mulberry32(pIdx * 9999 + 1);
-  while (wx < pl.patrolPx - 400) {
-    wx += 300 + rng() * 400;
-    const type = pl.obstacles[Math.floor(rng() * pl.obstacles.length)];
-    if (type==='crater'||type==='ravine'||type==='crevasse'||type==='void_gap') {
-      result.push({ type, x:wx, w: type==='ravine' ? 60+rng()*40 : 32+rng()*30, h:30 });
-    } else {
-      result.push({ type, x:wx, w:18, h: (28 + rng() * 20) | 0 });
-    }
-  }
-  return result;
-}
-
-function getGroundY(worldX) {
-  for (const o of obstacles) {
-    if ((o.type==='crater'||o.type==='ravine'||o.type==='crevasse'||o.type==='void_gap')
-        && worldX >= o.x && worldX <= o.x + o.w) return H + 100;
-  }
-  return GROUND_Y;
-}
-
-function aabb(a, b) {
-  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
-}
-
-function killBuggy() {
-  if (buggy.shield) { buggy.shield = false; return; }
-  lives--;
-  if (lives <= 0) {
-    state = S.GAME_OVER; hiScore = Math.max(hiScore,score); localStorage.setItem('mpr_hi',hiScore); return;
-  }
-  deathOnThisPlanet = true;
-  state = S.DYING;
-  setTimeout(() => { respawnBuggy(); state = S.PLAYING; }, 1200);
-}
-
-function respawnBuggy() {
-  buggy.x=80; buggy.y=GROUND_Y-BUGGY_H; buggy.vx=150; buggy.vy=0;
-  buggy.onGround=true; buggy.shield=false; buggy.sliding=false;
-  buggy.rapidFire=false; buggy.missiles=0; buggy.scoreMultiplier=1;
-}
-
-function drawObstacles() {
-  for (const o of obstacles) {
-    const sx = o.x - scrollX;
-    if (sx > W+50 || sx+o.w < -50) continue;
-    const pl = PLANETS[planetIdx];
-    if (o.type==='crater'||o.type==='ravine'||o.type==='crevasse'||o.type==='void_gap') {
-      ctx.fillStyle='#000'; ctx.fillRect(sx,GROUND_Y,o.w,H-GROUND_Y);
-    } else {
-      ctx.fillStyle=pl.palette.groundTop; ctx.fillRect(sx,GROUND_Y-o.h,o.w,o.h);
-      ctx.strokeStyle=pl.palette.star; ctx.lineWidth=1; ctx.strokeRect(sx,GROUND_Y-o.h,o.w,o.h);
-    }
-  }
-}
-
 // ── buggy ─────────────────────────────────────────────────────────────────────
 const BUGGY_W = 52, BUGGY_H = 28;
 let buggy;
@@ -135,6 +63,7 @@ function initGame() {
   planetIdx = 0; score = 0; lives = 3; progress = 0; scrollX = 0; frame = 0;
   deathOnThisPlanet = false;
   obstacles = generateObstacles(0);
+  bullets = [];
   buggy = { x:80, y:GROUND_Y - BUGGY_H, vx:150, vy:0, onGround:true,
             sliding:false, slideTimer:0, shield:false,
             rapidFire:false, rapidTimer:0, missiles:0,
@@ -226,6 +155,122 @@ function drawBuggy() {
   ctx.fillRect(sx + 30, b.y - 8, 3, 10);          // upward
 }
 
+// ── obstacles ─────────────────────────────────────────────────────────────────
+let obstacles = [];
+
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function generateObstacles(pIdx) {
+  const pl = PLANETS[pIdx];
+  const result = [];
+  let wx = 600;
+  const rng = mulberry32(pIdx * 9999 + 1);
+  while (wx < pl.patrolPx - 400) {
+    wx += 300 + rng() * 400;
+    const type = pl.obstacles[Math.floor(rng() * pl.obstacles.length)];
+    if (type==='crater'||type==='ravine'||type==='crevasse'||type==='void_gap') {
+      result.push({ type, x:wx, w: type==='ravine' ? 60+rng()*40 : 32+rng()*30, h:30 });
+    } else {
+      result.push({ type, x:wx, w:18, h: (28 + rng() * 20) | 0 });
+    }
+  }
+  return result;
+}
+
+function getGroundY(worldX) {
+  for (const o of obstacles) {
+    if ((o.type==='crater'||o.type==='ravine'||o.type==='crevasse'||o.type==='void_gap')
+        && worldX >= o.x && worldX <= o.x + o.w) return H + 100;
+  }
+  return GROUND_Y;
+}
+
+function aabb(a, b) {
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+
+function killBuggy() {
+  if (buggy.shield) { buggy.shield = false; return; }
+  lives--;
+  if (lives <= 0) {
+    state = S.GAME_OVER; hiScore = Math.max(hiScore,score); localStorage.setItem('mpr_hi',hiScore); return;
+  }
+  deathOnThisPlanet = true;
+  state = S.DYING;
+  setTimeout(() => { respawnBuggy(); state = S.PLAYING; }, 1200);
+}
+
+function respawnBuggy() {
+  buggy.x=80; buggy.y=GROUND_Y-BUGGY_H; buggy.vx=150; buggy.vy=0;
+  buggy.onGround=true; buggy.shield=false; buggy.sliding=false;
+  buggy.rapidFire=false; buggy.missiles=0; buggy.scoreMultiplier=1;
+}
+
+function drawObstacles() {
+  for (const o of obstacles) {
+    const sx = o.x - scrollX;
+    if (sx > W+50 || sx+o.w < -50) continue;
+    const pl = PLANETS[planetIdx];
+    if (o.type==='crater'||o.type==='ravine'||o.type==='crevasse'||o.type==='void_gap') {
+      ctx.fillStyle='#000'; ctx.fillRect(sx,GROUND_Y,o.w,H-GROUND_Y);
+    } else {
+      ctx.fillStyle=pl.palette.groundTop; ctx.fillRect(sx,GROUND_Y-o.h,o.w,o.h);
+      ctx.strokeStyle=pl.palette.star; ctx.lineWidth=1; ctx.strokeRect(sx,GROUND_Y-o.h,o.w,o.h);
+    }
+  }
+}
+
+// ── bullets ───────────────────────────────────────────────────────────────────
+let bullets = [];
+
+function fireBuggy() {
+  const cooldown = buggy.rapidFire ? 0.1 : 0.25;
+  if (buggy.fireTimer > 0) return;
+  buggy.fireTimer = cooldown;
+  bullets.push({ x:buggy.x+BUGGY_W, y:buggy.y+BUGGY_H*0.4, vx:700, vy:0, w:12, h:4, owner:'player' });
+  bullets.push({ x:buggy.x+BUGGY_W*0.6, y:buggy.y, vx:0, vy:-650, w:4, h:12, owner:'player' });
+  if (typeof audio !== 'undefined') audio.sfx('cannon',{rate:1.2,vol:0.4});
+}
+
+function fireMissile() {
+  if (buggy.missiles <= 0) return;
+  buggy.missiles--;
+  const targets = (typeof enemies !== 'undefined' ? enemies : []).filter(e=>e.y<GROUND_Y-40);
+  let tx=buggy.x+200, ty=buggy.y-200;
+  if (targets.length) {
+    const n=targets.reduce((a,b)=>Math.hypot(a.x-buggy.x,a.y-buggy.y)<Math.hypot(b.x-buggy.x,b.y-buggy.y)?a:b);
+    tx=n.x+n.w/2; ty=n.y+n.h/2;
+  }
+  const dx=tx-buggy.x, dy=ty-buggy.y, mag=Math.hypot(dx,dy)||1;
+  bullets.push({x:buggy.x+BUGGY_W*0.6,y:buggy.y,vx:dx/mag*600,vy:dy/mag*600,w:8,h:8,owner:'missile'});
+}
+
+function updateBullets(dt) {
+  for (const b of bullets) { b.x+=b.vx*dt; b.y+=b.vy*dt; }
+  for (let i=bullets.length-1;i>=0;i--) {
+    const b=bullets[i];
+    if (b.x>scrollX+W+60||b.x<scrollX-60||b.y<0||b.y>H) bullets.splice(i,1);
+  }
+}
+
+function drawBullets() {
+  for (const b of bullets) {
+    const sx = b.x - scrollX;
+    ctx.fillStyle = b.owner==='missile'?'#ff2bd6':b.owner==='player'?'#ffd866':'#ff4040';
+    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
+    if (b.owner==='missile') ctx.fillRect(sx-b.w/2,b.y-b.h/2,b.w,b.h);
+    else ctx.fillRect(sx,b.y,b.w,b.h);
+    ctx.shadowBlur=0;
+  }
+}
+
 // ── loop ─────────────────────────────────────────────────────────────────────
 let lastTs = 0;
 function loop(ts) {
@@ -242,7 +287,7 @@ function update(dt) {
   if (state !== S.PLAYING && state !== S.BOSS && state !== S.DYING) return;
   if (typeof updateEnv === 'function') updateEnv(dt);
   updateBuggy(dt);
-  if (typeof updateBullets === 'function') updateBullets(dt);
+  updateBullets(dt);
   if (typeof updateEnemies === 'function') updateEnemies(dt);
   if (typeof checkCollisions === 'function') checkCollisions();
   if (typeof updatePowerups === 'function') updatePowerups(dt);
@@ -252,6 +297,11 @@ function update(dt) {
     scrollX += buggy.vx * dt;
     progress = Math.min(1, scrollX / PLANETS[planetIdx].patrolPx);
     if (progress >= 1 && typeof startBoss === 'function') startBoss();
+  }
+  // fire input
+  if (state===S.PLAYING||state===S.BOSS) {
+    if (keys['KeyZ']||keys['ControlLeft']||keys['ControlRight']) fireBuggy();
+    if (keys['KeyX']) fireMissile();
   }
 }
 
@@ -287,7 +337,7 @@ function draw() {
       drawObstacles();
       if (typeof drawPowerups === 'function') drawPowerups();
       if (typeof drawEnemies === 'function') drawEnemies();
-      if (typeof drawBullets === 'function') drawBullets();
+      drawBullets();
       drawBuggy();
       if (typeof drawParticles === 'function') drawParticles();
       if (typeof drawBoss === 'function' && state === S.BOSS) drawBoss();
