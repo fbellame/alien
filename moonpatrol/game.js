@@ -64,10 +64,14 @@ function initGame() {
   deathOnThisPlanet = false;
   obstacles = generateObstacles(0);
   bullets = [];
+  enemies = []; spawnTimer = 0;
+  particles = []; powerups = [];
+  boss = null;
   buggy = { x:80, y:GROUND_Y - BUGGY_H, vx:150, vy:0, onGround:true,
             sliding:false, slideTimer:0, shield:false,
             rapidFire:false, rapidTimer:0, missiles:0,
             scoreMultiplier:1, scoreMultTimer:0, fireTimer:0 };
+  initEnv();
   state = S.PLANET_INTRO;
   Object.keys(keys).forEach(k => { keys[k] = false; });
   setTimeout(() => { state = S.PLAYING; }, 2500);
@@ -376,22 +380,432 @@ function drawGround(pl) {
   ctx.fillRect(0, GROUND_Y, W, 4);
 }
 
-function startBoss() { state = S.BOSS; }
+// ── enemies ───────────────────────────────────────────────────────────────────
+let enemies = [];
+let spawnTimer = 0;
+
+const ENEMY_CFG = {
+  ufo_scout:    { w:36, h:18, hp:1, spd:120, aerial:true,  fireRate:2.5 },
+  moon_tank:    { w:36, h:20, hp:2, spd:70,  aerial:false, fireRate:3.5 },
+  sand_crawler: { w:32, h:16, hp:1, spd:150, aerial:false, fireRate:0   },
+  dive_bomber:  { w:28, h:20, hp:1, spd:160, aerial:true,  fireRate:0   },
+  ice_drone:    { w:30, h:20, hp:1, spd:100, aerial:true,  fireRate:2.0 },
+  cryo_turret:  { w:24, h:28, hp:3, spd:0,   aerial:false, fireRate:2.8 },
+  phantom_drone:{ w:32, h:24, hp:2, spd:110, aerial:true,  fireRate:1.8 },
+  orbital_mine: { w:20, h:20, hp:1, spd:60,  aerial:true,  fireRate:0 },
+};
+
+function spawnEnemy(type, x, y) {
+  const cfg = ENEMY_CFG[type];
+  enemies.push({ type, x, y: y !== undefined ? y : (cfg.aerial ? 120 + Math.random()*180 : GROUND_Y - cfg.h),
+    w: cfg.w, h: cfg.h, hp: cfg.hp, maxHp: cfg.hp,
+    vx: -cfg.spd, vy: 0, fireTimer: Math.random() * (cfg.fireRate || 1),
+    phase: 0, phaseTimer: 0, visible: true });
+}
+
+function updateEnemies(dt) {
+  spawnTimer -= dt;
+  if (spawnTimer <= 0 && state === S.PLAYING) {
+    spawnTimer = 1.5 + Math.random() * 2;
+    const pl = PLANETS[planetIdx];
+    spawnEnemy(pl.enemies[Math.floor(Math.random() * pl.enemies.length)], scrollX + W + 60);
+  }
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    if (e.x + e.w < scrollX - 60) { enemies.splice(i, 1); continue; }
+    e.x += e.vx * dt;
+    if (!ENEMY_CFG[e.type].aerial) e.y = GROUND_Y - e.h;
+    if (e.type === 'ufo_scout') {
+      e.phaseTimer += dt;
+      e.y += Math.sin(e.phaseTimer * 2) * 60 * dt;
+      e.y = Math.max(50, Math.min(GROUND_Y - 80, e.y));
+    }
+    if (e.type === 'dive_bomber') {
+      e.phaseTimer += dt;
+      if (e.phase === 0 && e.phaseTimer > 1.5) { e.phase = 1; e.phaseTimer = 0; e.vy = 300; }
+      if (e.phase === 1) { e.y += e.vy * dt; e.vy -= 600 * dt; if (e.vy < -200) e.phase = 2; }
+      if (e.phase === 2) { e.y += e.vy * dt; if (e.y < 60) { e.phase = 0; e.phaseTimer = 0; e.vy = 0; } }
+    }
+    if (e.type === 'phantom_drone') {
+      e.phaseTimer += dt;
+      e.visible = Math.floor(e.phaseTimer * 2) % 2 === 0;
+    }
+    if (e.type === 'cryo_turret') e.vx = 0;
+    const cfg = ENEMY_CFG[e.type];
+    if (cfg.fireRate > 0) {
+      e.fireTimer -= dt;
+      if (e.fireTimer <= 0) { e.fireTimer = cfg.fireRate + Math.random(); fireEnemy(e); }
+    }
+  }
+}
+
+function fireEnemy(e) {
+  const dx = buggy.x - e.x, dy = buggy.y - e.y, mag = Math.hypot(dx, dy) || 1;
+  if (e.type === 'cryo_turret') {
+    for (let a = -0.3; a <= 0.3; a += 0.3)
+      bullets.push({ x:e.x, y:e.y+e.h/2, vx:dx/mag*200+Math.cos(a)*160, vy:dy/mag*200+Math.sin(a)*160, w:6, h:6, owner:'enemy' });
+  } else {
+    bullets.push({ x:e.x, y:e.y+e.h/2, vx:dx/mag*200, vy:dy/mag*200, w:6, h:6, owner:'enemy' });
+  }
+}
+
+function drawEnemies() {
+  for (const e of enemies) {
+    if (!e.visible) continue;
+    const sx = e.x - scrollX;
+    if (sx > W+50 || sx+e.w < -50) continue;
+    ctx.fillStyle = (e.type.includes('ufo')||e.type.includes('drone')||e.type==='orbital_mine') ? '#ff2bd6' : '#7dffae';
+    ctx.fillRect(sx, e.y, e.w, e.h);
+    if (e.maxHp > 1) {
+      ctx.fillStyle='#333'; ctx.fillRect(sx,e.y-6,e.w,4);
+      ctx.fillStyle='#f44'; ctx.fillRect(sx,e.y-6,e.w*(e.hp/e.maxHp),4);
+    }
+  }
+}
+
+function checkCollisions() {
+  const bRect = { x:buggy.x, y:buggy.y, w:BUGGY_W, h:BUGGY_H };
+  // player bullets vs enemies
+  for (let bi=bullets.length-1; bi>=0; bi--) {
+    const b=bullets[bi];
+    if (b.owner==='enemy') continue;
+    for (let ei=enemies.length-1; ei>=0; ei--) {
+      const e=enemies[ei];
+      if (!e.visible) continue;
+      if (aabb({x:b.x,y:b.y,w:b.w,h:b.h},{x:e.x,y:e.y,w:e.w,h:e.h})) {
+        e.hp--; bullets.splice(bi,1);
+        if (e.hp<=0) { addScore(PTS[e.type]||100); spawnPowerup(e.x,e.y); spawnExplosion(e.x+e.w/2,e.y+e.h/2); enemies.splice(ei,1); }
+        break;
+      }
+    }
+  }
+  // enemy bullets vs buggy
+  for (let bi=bullets.length-1; bi>=0; bi--) {
+    const b=bullets[bi];
+    if (b.owner!=='enemy') continue;
+    if (aabb({x:b.x,y:b.y,w:b.w,h:b.h},bRect)) { bullets.splice(bi,1); killBuggy(); return; }
+  }
+  // enemies vs buggy contact
+  for (const e of enemies) {
+    if (!e.visible) continue;
+    if (aabb(bRect,{x:e.x,y:e.y,w:e.w,h:e.h})) { killBuggy(); return; }
+  }
+  // player bullets vs solid obstacles
+  for (let bi=bullets.length-1; bi>=0; bi--) {
+    const b=bullets[bi];
+    if (b.owner==='enemy') continue;
+    for (let oi=obstacles.length-1; oi>=0; oi--) {
+      const o=obstacles[oi];
+      if (o.type!=='lunar_rock'&&o.type!=='rock_spire'&&o.type!=='ice_wall') continue;
+      if (aabb({x:b.x,y:b.y,w:b.w,h:b.h},{x:o.x,y:GROUND_Y-o.h,w:o.w,h:o.h})) {
+        bullets.splice(bi,1); obstacles.splice(oi,1); spawnExplosion(o.x+o.w/2,GROUND_Y-o.h/2); break;
+      }
+    }
+  }
+}
+
+function addScore(pts) {
+  score += pts * buggy.scoreMultiplier;
+  hiScore = Math.max(hiScore, score);
+}
+
+// ── environment ───────────────────────────────────────────────────────────────
+let envState = {};
+
+function initEnv() {
+  envState = { dustTimer: 12, dustActive: false, dustAlpha: 0 };
+}
+
+function updateEnv(dt) {
+  const pl = PLANETS[planetIdx];
+  if (pl.envId === 'dust_storm') {
+    envState.dustTimer -= dt;
+    if (envState.dustTimer <= 0) {
+      if (envState.dustActive) {
+        envState.dustActive = false;
+        envState.dustTimer = 12 + Math.random() * 6;
+        for (const e of enemies) e.vx = -ENEMY_CFG[e.type].spd;
+      } else {
+        envState.dustActive = true;
+        envState.dustTimer = 4;
+        for (const e of enemies) e.vx *= 1.4;
+      }
+    }
+    const target = envState.dustActive ? 0.70 : 0;
+    envState.dustAlpha += (target - envState.dustAlpha) * 5 * dt;
+  }
+}
+
+function drawEnvOverlay() {
+  const pl = PLANETS[planetIdx];
+  if (typeof gravityReversed !== 'undefined' && gravityReversed) {
+    ctx.fillStyle = 'rgba(176,115,255,0.15)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#b073ff'; ctx.font='bold 14px monospace'; ctx.textAlign='center';
+    ctx.fillText('⚠ GRAVITY REVERSED', W/2, H/2); ctx.textAlign='left';
+  }
+  if (pl.envId==='dust_storm' && envState.dustAlpha > 0.01) {
+    ctx.fillStyle=`rgba(180,80,0,${envState.dustAlpha*0.7})`; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle=`rgba(220,120,40,${envState.dustAlpha*0.4})`;
+    for (let i=0;i<30;i++) {
+      ctx.fillRect(((i*137+frame*3)%W), 40+(i*73)%(GROUND_Y-80), 40+(i%4)*20, 2);
+    }
+  }
+}
+
+// ── particles & power-ups ─────────────────────────────────────────────────────
+let particles = [];
+let powerups = [];
+
+function spawnExplosion(x, y) {
+  const colors = ['#ffd866','#ff9a3c','#c04020','#ffffff'];
+  for (let i=0;i<14;i++) {
+    const angle=Math.random()*Math.PI*2, spd=80+Math.random()*220;
+    particles.push({x,y,vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd-60,
+      color:colors[Math.floor(Math.random()*4)],life:0.5+Math.random()*0.4,maxLife:0.9,r:2+Math.random()*3});
+  }
+}
+
+function updateParticles(dt) {
+  for (let i=particles.length-1;i>=0;i--) {
+    const p=particles[i];
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=300*dt; p.life-=dt;
+    if (p.life<=0) particles.splice(i,1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha=Math.max(0,p.life/p.maxLife);
+    ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x-scrollX,p.y,p.r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+function spawnPowerup(x, y) {
+  if (Math.random()>0.20) return;
+  const types=['rapid_fire','shield','missile','score_x2'];
+  powerups.push({type:types[Math.floor(Math.random()*4)],x,y:y-10,w:16,h:16,timer:5});
+}
+
+const PU_COLORS={rapid_fire:'#ffd866',shield:'#5ef0ff',missile:'#ff2bd6',score_x2:'#7dffae'};
+const PU_LABELS={rapid_fire:'⚡',shield:'🛡',missile:'🚀',score_x2:'×2'};
+
+function updatePowerups(dt) {
+  for (let i=powerups.length-1;i>=0;i--) {
+    const p=powerups[i]; p.timer-=dt;
+    if (p.timer<=0) { powerups.splice(i,1); continue; }
+    if (aabb({x:buggy.x,y:buggy.y,w:BUGGY_W,h:BUGGY_H},{x:p.x,y:p.y,w:p.w,h:p.h})) {
+      applyPowerup(p.type); powerups.splice(i,1);
+    }
+  }
+}
+
+function applyPowerup(type) {
+  if (type==='rapid_fire') { buggy.rapidFire=true; buggy.rapidTimer=8; }
+  else if (type==='shield') { buggy.shield=true; }
+  else if (type==='missile') { buggy.missiles=Math.min(buggy.missiles+3,9); }
+  else if (type==='score_x2') { buggy.scoreMultiplier=2; buggy.scoreMultTimer=12; }
+}
+
+function drawPowerups() {
+  for (const p of powerups) {
+    const sx=p.x-scrollX;
+    if (sx<-30||sx>W+30) continue;
+    if (p.timer<1.5&&Math.floor(frame/4)%2===0) continue;
+    ctx.fillStyle=PU_COLORS[p.type]; ctx.fillRect(sx,p.y,p.w,p.h);
+    ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.strokeRect(sx,p.y,p.w,p.h);
+    ctx.fillStyle='#000'; ctx.font='10px monospace'; ctx.fillText(PU_LABELS[p.type],sx+2,p.y+12);
+  }
+}
+
+// ── boss system ───────────────────────────────────────────────────────────────
+let boss = null;
+
+const BOSS_CFG = {
+  lunar_fortress:   { w:180, h:80,  maxHp:30 },
+  storm_titan:      { w:160, h:120, maxHp:40 },
+  glacial_sentinel: { w:100, h:160, maxHp:40 },
+  the_overseer:     { w:140, h:140, maxHp:60 },
+};
+
+function startBoss() {
+  const pl=PLANETS[planetIdx], cfg=BOSS_CFG[pl.bossId];
+  state=S.BOSS; enemies=[]; bullets=[];
+  boss={type:pl.bossId, x:scrollX+W+40, y:GROUND_Y-cfg.h,
+        w:cfg.w, h:cfg.h, hp:cfg.maxHp, maxHp:cfg.maxHp,
+        phase:0, phaseTimer:0, attackTimer:0, vx:-60, vy:0};
+}
+
+function updateBoss(dt) {
+  if (!boss) return;
+  boss.phaseTimer+=dt; boss.attackTimer-=dt;
+  switch(boss.type) {
+    case 'lunar_fortress':   updateLunarFortress(dt); break;
+    case 'storm_titan':      updateStormTitan(dt); break;
+    case 'glacial_sentinel': updateGlacialSentinel(dt); break;
+    case 'the_overseer':     updateOverseer(dt); break;
+  }
+  for (let bi=bullets.length-1;bi>=0;bi--) {
+    const b=bullets[bi];
+    if (b.owner==='enemy') continue;
+    if (aabb({x:b.x,y:b.y,w:b.w,h:b.h},{x:boss.x,y:boss.y,w:boss.w,h:boss.h})) {
+      if (bossWeakPointHit(b)) {
+        boss.hp--; bullets.splice(bi,1); spawnExplosion(b.x,b.y);
+        if (boss.hp<=0) { defeatBoss(); return; }
+      } else { bullets.splice(bi,1); }
+    }
+  }
+  if (aabb({x:buggy.x,y:buggy.y,w:BUGGY_W,h:BUGGY_H},{x:boss.x,y:boss.y,w:boss.w,h:boss.h})) killBuggy();
+}
+
+function bossWeakPointHit(bullet) {
+  if (!boss) return false;
+  if (boss.type==='lunar_fortress') {
+    const hx=boss.x+boss.w*0.4, hw=boss.w*0.2;
+    return boss.phase===0 && bullet.x>=hx && bullet.x<=hx+hw;
+  }
+  if (boss.type==='storm_titan') return boss.phase<2;
+  if (boss.type==='glacial_sentinel') return boss.phaseTimer>1;
+  if (boss.type==='the_overseer') return boss.phase!==1||enemies.length===0;
+  return true;
+}
+
+function defeatBoss() {
+  addScore(PTS.boss);
+  if (!deathOnThisPlanet) addScore(PTS.planet_nodeath);
+  const bx=boss.x, by=boss.y, bw=boss.w, bh=boss.h;
+  for (let i=0;i<8;i++) setTimeout(()=>spawnExplosion(bx+Math.random()*bw,by+Math.random()*bh),i*120);
+  boss=null;
+  if (planetIdx<PLANETS.length-1) {
+    planetIdx++; obstacles=generateObstacles(planetIdx);
+    enemies=[]; bullets=[]; powerups=[]; scrollX=0; progress=0; deathOnThisPlanet=false;
+    initEnv(); state=S.PLANET_CLEAR;
+    setTimeout(()=>{ state=S.PLANET_INTRO; setTimeout(()=>{ state=S.PLAYING; },2500); },3000);
+  } else {
+    state=S.VICTORY; hiScore=Math.max(hiScore,score); localStorage.setItem('mpr_hi',hiScore);
+  }
+}
+
+function drawBoss() {
+  if (!boss) return;
+  const sx=boss.x-scrollX;
+  ctx.fillStyle='#7a3a00'; ctx.fillRect(sx,boss.y,boss.w,boss.h);
+  ctx.strokeStyle='#ff9a3c'; ctx.lineWidth=2; ctx.strokeRect(sx,boss.y,boss.w,boss.h);
+  ctx.fillStyle='#333'; ctx.fillRect(sx,boss.y-14,boss.w,8);
+  ctx.fillStyle='#c04020'; ctx.fillRect(sx,boss.y-14,boss.w*(boss.hp/boss.maxHp),8);
+  ctx.strokeStyle='#ffd866'; ctx.lineWidth=1; ctx.strokeRect(sx,boss.y-14,boss.w,8);
+  ctx.fillStyle='#ffd866'; ctx.font='10px monospace';
+  ctx.fillText(boss.type.toUpperCase().replace(/_/g,' '),sx,boss.y-18);
+}
+
+function updateLunarFortress(dt) {
+  if (boss.x > scrollX+W*0.6) { boss.x+=boss.vx*dt; return; }
+  boss.vx=0;
+  if (boss.phase===0) {
+    if (boss.attackTimer<=0) {
+      boss.attackTimer=3;
+      spawnEnemy('ufo_scout',boss.x+boss.w*0.4,boss.y);
+      spawnEnemy('ufo_scout',boss.x+boss.w*0.6,boss.y);
+    }
+    if (boss.hp<=boss.maxHp*0.67) { boss.phase=1; boss.phaseTimer=0; boss.attackTimer=2; }
+  }
+  if (boss.phase===1) {
+    if (boss.attackTimer<=0) {
+      boss.attackTimer=1.8;
+      const dx=buggy.x-(boss.x+boss.w/2), dy=GROUND_Y-(boss.y+boss.h), t=1.2;
+      bullets.push({x:boss.x+boss.w/2,y:boss.y+boss.h,vx:dx/t,vy:dy/t-360*t,w:10,h:10,owner:'enemy'});
+    }
+    if (boss.hp<=boss.maxHp*0.33) { boss.phase=2; boss.phaseTimer=0; boss.vx=-180; }
+  }
+  if (boss.phase===2) {
+    boss.x+=boss.vx*dt;
+    if (boss.x<scrollX-50) { boss.x=scrollX+W+40; boss.vx=-180; }
+  }
+}
+
+function updateStormTitan(dt) {
+  const targetY=80;
+  if (boss.phase<2) boss.y+=(targetY-boss.y)*3*dt;
+  if (boss.phase===0) {
+    if (boss.attackTimer<=0) {
+      boss.attackTimer=2;
+      const cx=boss.x+boss.w/2;
+      for (let a=-0.25;a<=0.25;a+=0.25)
+        bullets.push({x:cx,y:boss.y+boss.h,vx:Math.sin(a)*180,vy:240,w:8,h:8,owner:'enemy'});
+    }
+    if (boss.hp<=boss.maxHp*0.67) { boss.phase=1; boss.phaseTimer=0; boss.attackTimer=1; }
+  }
+  if (boss.phase===1) {
+    if (boss.phaseTimer<1.2) {
+      boss.y+=400*dt;
+      if (boss.y+boss.h>=GROUND_Y) { boss.y=GROUND_Y-boss.h; boss.phaseTimer=1.2; }
+    } else {
+      boss.y-=300*dt;
+      if (boss.y<=targetY) { boss.y=targetY; boss.phaseTimer=0; boss.attackTimer=1.5; }
+    }
+    if (boss.hp<=boss.maxHp*0.33) { boss.phase=2; boss.phaseTimer=0; boss.attackTimer=1; if (typeof envState!=='undefined') { envState.dustActive=true; envState.dustAlpha=0.7; } }
+  }
+  if (boss.phase===2) {
+    boss.y+=(targetY-boss.y)*3*dt;
+    if (boss.attackTimer<=0) {
+      boss.attackTimer=3;
+      spawnEnemy('dive_bomber',boss.x+boss.w*0.3,boss.y+boss.h);
+      spawnEnemy('dive_bomber',boss.x+boss.w*0.6,boss.y+boss.h);
+    }
+  }
+}
+
+function updateGlacialSentinel(dt) {
+  const spd=boss.phase===2?90:60;
+  boss.x-=spd*dt;
+  if (boss.x<scrollX+40) boss.x=scrollX+40;
+  if (boss.phase===0) {
+    if (boss.attackTimer<=0) {
+      boss.attackTimer=2.8;
+      for (let a=-0.4;a<=0.4;a+=0.2)
+        bullets.push({x:boss.x,y:boss.y+boss.h*0.5,vx:-180+Math.cos(a)*120,vy:Math.sin(a)*180,w:8,h:8,owner:'enemy'});
+      obstacles.push({type:'ice_wall',x:scrollX+400,w:18,h:40});
+    }
+    if (boss.hp<=boss.maxHp*0.67) { boss.phase=1; boss.phaseTimer=0; }
+  }
+  if (boss.phase===1) {
+    if (boss.phaseTimer>=0.7) {
+      bullets.push({x:boss.x-20,y:GROUND_Y-12,vx:-350,vy:0,w:30,h:20,owner:'enemy'});
+      boss.phase=0; boss.phaseTimer=0;
+    }
+    if (boss.hp<=boss.maxHp*0.33) boss.phase=2;
+  }
+}
+
+function updateOverseer(dt) {}
+
+// ── planet clear overlay ──────────────────────────────────────────────────────
+function drawPlanetClear() {
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#ffd866'; ctx.font = 'bold 40px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('PLANET CLEAR!', W/2, H/2 - 20);
+  ctx.font = '18px monospace'; ctx.fillStyle = '#ff9a3c';
+  ctx.fillText('NEXT PATROL ZONE IN...', W/2, H/2 + 30);
+  ctx.textAlign = 'left';
+}
 
 function drawHUD() {
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(0, 0, W, 44);
-  ctx.fillStyle = '#ffd866'; ctx.font = 'bold 13px monospace';
-  ctx.fillText('SCORE ' + String(score).padStart(7,'0'), 12, 17);
-  ctx.fillStyle = '#ff9a3c';
-  ctx.fillText('HI ' + String(hiScore).padStart(7,'0'), 12, 32);
-  ctx.fillStyle = PLANETS[planetIdx].palette.text;
-  ctx.textAlign = 'center'; ctx.fillText(PLANETS[planetIdx].name, W/2, 17); ctx.textAlign = 'left';
-  ctx.fillStyle = '#ffd866';
-  ctx.fillText('LIVES ' + '♥'.repeat(Math.max(0,lives)), W - 140, 17);
-  const barX=80, barY=44, barW=W-160, barH=6;
+  const pl = PLANETS[planetIdx];
+  ctx.fillStyle='rgba(0,0,0,0.60)'; ctx.fillRect(0,0,W,44);
+  ctx.font='bold 13px monospace';
+  ctx.fillStyle='#ffd866'; ctx.fillText('SCORE '+String(score).padStart(7,'0'),12,17);
+  ctx.fillStyle='#ff9a3c'; ctx.fillText('HI '+String(hiScore).padStart(7,'0'),12,32);
+  ctx.fillStyle=pl.palette.text; ctx.textAlign='center'; ctx.fillText(pl.name,W/2,17); ctx.textAlign='left';
+  ctx.fillStyle='#ffd866'; ctx.fillText('LIVES '+'♥'.repeat(Math.max(0,lives)),W-140,17);
+  let px=W-140;
+  if (buggy.shield)       { ctx.fillStyle='#5ef0ff'; ctx.fillText('SHLD',px,32); px+=44; }
+  if (buggy.rapidFire)    { ctx.fillStyle='#ffd866'; ctx.fillText('RPID',px,32); px+=44; }
+  if (buggy.missiles>0)   { ctx.fillStyle='#ff2bd6'; ctx.fillText('MSL×'+buggy.missiles,px,32); }
+  const barX=80,barY=44,barW=W-160,barH=6;
   ctx.fillStyle='#1a0900'; ctx.fillRect(barX,barY,barW,barH);
-  ctx.fillStyle=PLANETS[planetIdx].palette.groundTop; ctx.fillRect(barX,barY,barW*progress,barH);
+  ctx.fillStyle=pl.palette.groundTop; ctx.fillRect(barX,barY,barW*progress,barH);
   ctx.fillStyle='#ff9a3c'; ctx.font='10px monospace';
   ctx.fillText('A',barX-14,barY+7); ctx.fillText('Z',barX+barW+4,barY+7);
   ctx.fillStyle='#c04020'; ctx.fillText('BOSS▸',barX+barW-36,barY-2);
