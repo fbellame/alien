@@ -146,7 +146,7 @@ async function loadAssets() {
     ['boss_lunar_fortress','images/boss_lunar_fortress.png'],
     ['boss_storm_titan',   'images/boss_storm_titan.png'],
     ['boss_glacial_sentinel','images/boss_glacial_sentinel.png'],
-    ['boss_overseer',      'images/boss_overseer.png'],
+    ['boss_the_overseer',  'images/boss_overseer.png'],
   ];
   await Promise.all(entries.map(async ([k, src]) => { IMGS[k] = await loadImg(src); }));
 }
@@ -186,6 +186,8 @@ function initGame() {
             sliding:false, slideTimer:0, shield:false,
             rapidFire:false, rapidTimer:0, missiles:0,
             scoreMultiplier:1, scoreMultTimer:0, fireTimer:0 };
+  gravityReversed = false;
+  gravRevTimer = 0;
   initEnv();
   state = S.PLANET_INTRO;
   Object.keys(keys).forEach(k => { keys[k] = false; });
@@ -344,6 +346,8 @@ function respawnBuggy() {
   buggy.onGround=true; buggy.shield=false; buggy.sliding=false;
   buggy.rapidFire=false; buggy.missiles=0; buggy.scoreMultiplier=1;
   buggy.fireTimer=0;
+  gravityReversed = false;
+  gravRevTimer = 0;
 }
 
 function drawObstacles() {
@@ -803,6 +807,8 @@ function defeatBoss() {
   const bx=boss.x, by=boss.y, bw=boss.w, bh=boss.h;
   for (let i=0;i<8;i++) setTimeout(()=>spawnExplosion(bx+Math.random()*bw,by+Math.random()*bh),i*120);
   boss=null;
+  gravityReversed = false;
+  gravRevTimer = 0;
   if (planetIdx<PLANETS.length-1) {
     planetIdx++; obstacles=generateObstacles(planetIdx);
     enemies=[]; bullets=[]; powerups=[]; scrollX=0; progress=0; deathOnThisPlanet=false;
@@ -957,7 +963,7 @@ function updateOverseer(dt) {
   if (boss.phase === 0) {
     if (boss.attackTimer <= 0) {
       boss.attackTimer = 3.5;
-      bullets.push({ x: scrollX + W, y: GROUND_Y - 50, vx: -300, vy: 0, w: W, h: 14, owner: 'enemy' });
+      bullets.push({ x: scrollX + W, y: GROUND_Y - 14, vx: -300, vy: 0, w: 280, h: 14, owner: 'enemy' });
     }
     if (boss.hp <= boss.maxHp * 0.75) { boss.phase = 1; boss.phaseTimer = 0; enemies = []; }
   }
