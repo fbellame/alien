@@ -38,6 +38,70 @@ const PLANETS = [
     patrolPx:10000, bossId:'the_overseer' },
 ];
 
+// ── audio ─────────────────────────────────────────────────────────────────────
+class AudioMan {
+  constructor() {
+    const C = window.AudioContext || window.webkitAudioContext;
+    this.ctx = C ? new C() : null;
+    if (!this.ctx) return;
+    this.master = this.ctx.createGain(); this.master.gain.value = 0.8;
+    this.master.connect(this.ctx.destination);
+    this.sfxG = this.ctx.createGain(); this.sfxG.gain.value = 0.7;
+    this.sfxG.connect(this.master);
+    this.bufs = {};
+    this.engineNode = null; this.engineGain = null; this._lfo = null;
+  }
+
+  resume() { if (this.ctx?.state === 'suspended') this.ctx.resume(); }
+
+  async load(urls) {
+    if (!this.ctx) return;
+    await Promise.all(Object.entries(urls).map(async ([k, url]) => {
+      try {
+        const r = await fetch(url);
+        if (!r.ok) return;
+        const ab = await r.arrayBuffer();
+        this.bufs[k] = await this.ctx.decodeAudioData(ab);
+      } catch(e) { console.warn('audio load fail', url); }
+    }));
+  }
+
+  sfx(key, { rate = 1, vol = 0.6 } = {}) {
+    if (!this.ctx || !this.bufs[key]) return;
+    const s = this.ctx.createBufferSource(); s.buffer = this.bufs[key];
+    s.playbackRate.value = rate * (0.9 + Math.random() * 0.2);
+    const g = this.ctx.createGain(); g.gain.value = vol;
+    s.connect(g).connect(this.sfxG); s.start();
+    s.onended = () => g.disconnect();
+  }
+
+  startEngine() {
+    if (!this.ctx) return;
+    this.stopEngine();
+    const osc = this.ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 55;
+    const lfo = this.ctx.createOscillator(); lfo.frequency.value = 8;
+    const lfoGain = this.ctx.createGain(); lfoGain.gain.value = 6;
+    lfo.connect(lfoGain).connect(osc.frequency);
+    this.engineGain = this.ctx.createGain(); this.engineGain.gain.value = 0.08;
+    osc.connect(this.engineGain).connect(this.master);
+    osc.start(); lfo.start();
+    this.engineNode = osc; this._lfo = lfo;
+  }
+
+  stopEngine() {
+    try { this.engineNode?.stop(); this._lfo?.stop(); } catch(e) {}
+    this.engineNode = null; this._lfo = null;
+  }
+
+  setEngineSpeed(vx) {
+    if (!this.engineNode) return;
+    this.engineNode.frequency.value = 50 + vx * 0.18;
+  }
+}
+
+const audio = new AudioMan();
+audio.load({ cannon: 'sounds/cannon.wav', boom: 'sounds/boom.wav' });
+
 // ── game variables ────────────────────────────────────────────────────────────
 let planetIdx, score, lives, hiScore, progress, scrollX, frame;
 let deathOnThisPlanet;
@@ -63,6 +127,7 @@ let buggy;
 function initGame() {
   planetIdx = 0; score = 0; lives = 3; progress = 0; scrollX = 0; frame = 0;
   deathOnThisPlanet = false; paused = false;
+  audio.resume(); audio.startEngine();
   obstacles = generateObstacles(0);
   bullets = [];
   enemies = []; spawnTimer = 0;
@@ -99,6 +164,7 @@ function updateBuggy(dt) {
     else if (keys['ArrowLeft'] || keys['KeyA']) buggy.vx = Math.max(MIN_VX, buggy.vx - 180 * dt);
     else buggy.vx += (150 - buggy.vx) * 3 * dt;
   }
+  audio.setEngineSpeed(buggy.vx);
 
   // jump
   if ((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && buggy.onGround && pl.envId !== 'zero_g') {
@@ -249,7 +315,7 @@ function fireBuggy() {
   buggy.fireTimer = cooldown;
   bullets.push({ x:buggy.x+BUGGY_W, y:buggy.y+BUGGY_H*0.4, vx:700, vy:0, w:12, h:4, owner:'player' });
   bullets.push({ x:buggy.x+BUGGY_W*0.6, y:buggy.y, vx:0, vy:-650, w:4, h:12, owner:'player' });
-  if (typeof audio !== 'undefined') audio.sfx('cannon',{rate:1.2,vol:0.4});
+  audio.sfx('cannon', { rate: 1.2, vol: 0.4 });
 }
 
 function fireMissile() {
@@ -558,6 +624,7 @@ let particles = [];
 let powerups = [];
 
 function spawnExplosion(x, y) {
+  audio.sfx('boom', { rate: 0.8 + Math.random()*0.4, vol: 0.5 });
   const colors = ['#ffd866','#ff9a3c','#c04020','#ffffff'];
   for (let i=0;i<14;i++) {
     const angle=Math.random()*Math.PI*2, spd=80+Math.random()*220;
@@ -674,6 +741,7 @@ function bossWeakPointHit(bullet) {
 function defeatBoss() {
   addScore(PTS.boss);
   if (!deathOnThisPlanet) addScore(PTS.planet_nodeath);
+  audio.sfx('boom', { rate: 0.5, vol: 0.9 });
   const bx=boss.x, by=boss.y, bw=boss.w, bh=boss.h;
   for (let i=0;i<8;i++) setTimeout(()=>spawnExplosion(bx+Math.random()*bw,by+Math.random()*bh),i*120);
   boss=null;
