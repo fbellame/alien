@@ -209,6 +209,7 @@ function aabb(a, b) {
 function killBuggy() {
   if (state === S.DYING || state === S.GAME_OVER) return;
   if (buggy.shield) { buggy.shield = false; return; }
+  paused = false;
   lives--;
   if (lives <= 0) {
     state = S.GAME_OVER; hiScore = Math.max(hiScore,score); localStorage.setItem('mpr_hi',hiScore); return;
