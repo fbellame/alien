@@ -125,7 +125,7 @@ function updateBuggy(dt) {
   }
 
   // ceiling
-  if (buggy.y < 44) { buggy.y = 44; buggy.vy = Math.max(0, buggy.vy); }
+  if (buggy.y < 32) { buggy.y = 32; buggy.vy = Math.max(0, buggy.vy); }
 
   // solid obstacle collision
   for (const o of obstacles) {
@@ -634,7 +634,8 @@ function startBoss() {
   state=S.BOSS; enemies=[]; bullets=[];
   boss={type:pl.bossId, x:scrollX+W+40, y:GROUND_Y-cfg.h,
         w:cfg.w, h:cfg.h, hp:cfg.maxHp, maxHp:cfg.maxHp,
-        phase:0, phaseTimer:0, attackTimer:0, vx:-60, vy:0};
+        phase:0, phaseTimer:0, attackTimer:0, vx:-60, vy:0,
+        hatchOpen:false, hatchTimer:0};
 }
 
 function updateBoss(dt) {
@@ -662,8 +663,7 @@ function updateBoss(dt) {
 function bossWeakPointHit(bullet) {
   if (!boss) return false;
   if (boss.type==='lunar_fortress') {
-    const hx=boss.x+boss.w*0.4, hw=boss.w*0.2;
-    return boss.phase===0 && bullet.x>=hx && bullet.x<=hx+hw;
+    return boss.phase===0 && boss.hatchOpen;
   }
   if (boss.type==='storm_titan') return boss.phase<2;
   if (boss.type==='glacial_sentinel') return boss.phaseTimer>1;
@@ -692,6 +692,14 @@ function drawBoss() {
   const sx=boss.x-scrollX;
   ctx.fillStyle='#7a3a00'; ctx.fillRect(sx,boss.y,boss.w,boss.h);
   ctx.strokeStyle='#ff9a3c'; ctx.lineWidth=2; ctx.strokeRect(sx,boss.y,boss.w,boss.h);
+  // lunar fortress hatch indicator
+  if (boss.type==='lunar_fortress' && boss.phase===0) {
+    const hatchX = sx + boss.w*0.35, hatchW = boss.w*0.3, hatchH = 14;
+    ctx.fillStyle = boss.hatchOpen ? '#ffd866' : '#5a4a00';
+    ctx.fillRect(hatchX, boss.y - hatchH, hatchW, hatchH);
+    ctx.strokeStyle = boss.hatchOpen ? '#fff' : '#888';
+    ctx.lineWidth = 1; ctx.strokeRect(hatchX, boss.y - hatchH, hatchW, hatchH);
+  }
   ctx.fillStyle='#333'; ctx.fillRect(sx,boss.y-14,boss.w,8);
   ctx.fillStyle='#c04020'; ctx.fillRect(sx,boss.y-14,boss.w*(boss.hp/boss.maxHp),8);
   ctx.strokeStyle='#ffd866'; ctx.lineWidth=1; ctx.strokeRect(sx,boss.y-14,boss.w,8);
@@ -703,6 +711,12 @@ function updateLunarFortress(dt) {
   if (boss.x > scrollX+W*0.6) { boss.x+=boss.vx*dt; return; }
   boss.vx=0;
   if (boss.phase===0) {
+    // hatch open/close cycle: 1s open, 1s closed
+    boss.hatchTimer += dt;
+    if (boss.hatchTimer >= 1.0) {
+      boss.hatchOpen = !boss.hatchOpen;
+      boss.hatchTimer = 0;
+    }
     if (boss.attackTimer<=0) {
       boss.attackTimer=3;
       spawnEnemy('ufo_scout',boss.x+boss.w*0.4,boss.y);
@@ -757,24 +771,41 @@ function updateStormTitan(dt) {
 }
 
 function updateGlacialSentinel(dt) {
-  const spd=boss.phase===2?90:60;
-  boss.x-=spd*dt;
-  if (boss.x<scrollX+40) boss.x=scrollX+40;
-  if (boss.phase===0) {
-    if (boss.attackTimer<=0) {
-      boss.attackTimer=2.8;
-      for (let a=-0.4;a<=0.4;a+=0.2)
-        bullets.push({x:boss.x,y:boss.y+boss.h*0.5,vx:-180+Math.cos(a)*120,vy:Math.sin(a)*180,w:8,h:8,owner:'enemy'});
-      obstacles.push({type:'ice_wall',x:scrollX+400,w:18,h:40});
+  // Phase escalation checked every frame
+  if (boss.hp <= boss.maxHp * 0.33 && boss.phase < 2) boss.phase = 2;
+  else if (boss.hp <= boss.maxHp * 0.67 && boss.phase < 1) { boss.phase = 1; boss.phaseTimer = 0; }
+
+  const spd = boss.phase === 2 ? 90 : 60;
+  boss.x -= spd * dt;
+  if (boss.x < scrollX + 40) boss.x = scrollX + 40;
+
+  if (boss.phase === 0) {
+    if (boss.attackTimer <= 0) {
+      boss.attackTimer = 2.8;
+      for (let a = -0.4; a <= 0.4; a += 0.2)
+        bullets.push({x:boss.x, y:boss.y+boss.h*0.5, vx:-180+Math.cos(a)*120, vy:Math.sin(a)*180, w:8, h:8, owner:'enemy'});
+      obstacles.push({type:'ice_wall', x:scrollX+400, w:18, h:40});
     }
-    if (boss.hp<=boss.maxHp*0.67) { boss.phase=1; boss.phaseTimer=0; }
   }
-  if (boss.phase===1) {
-    if (boss.phaseTimer>=0.7) {
-      bullets.push({x:boss.x-20,y:GROUND_Y-12,vx:-350,vy:0,w:30,h:20,owner:'enemy'});
-      boss.phase=0; boss.phaseTimer=0;
+  if (boss.phase === 1) {
+    if (boss.phaseTimer >= 0.7) {
+      bullets.push({x:boss.x-20, y:GROUND_Y-12, vx:-350, vy:0, w:30, h:20, owner:'enemy'});
+      boss.phase = 0; boss.phaseTimer = 0;
     }
-    if (boss.hp<=boss.maxHp*0.33) boss.phase=2;
+  }
+  if (boss.phase === 2) {
+    if (boss.attackTimer <= 0) {
+      boss.attackTimer = 1.8;
+      if (Math.random() < 0.35) {
+        // shockwave
+        bullets.push({x:boss.x-20, y:GROUND_Y-12, vx:-350, vy:0, w:30, h:20, owner:'enemy'});
+      } else {
+        // ice shards at 1.5× aggression
+        for (let a = -0.4; a <= 0.4; a += 0.2)
+          bullets.push({x:boss.x, y:boss.y+boss.h*0.5, vx:-180+Math.cos(a)*120, vy:Math.sin(a)*180, w:8, h:8, owner:'enemy'});
+        obstacles.push({type:'ice_wall', x:scrollX+400, w:18, h:40});
+      }
+    }
   }
 }
 
@@ -793,7 +824,7 @@ function drawPlanetClear() {
 
 function drawHUD() {
   const pl = PLANETS[planetIdx];
-  ctx.fillStyle='rgba(0,0,0,0.60)'; ctx.fillRect(0,0,W,44);
+  ctx.fillStyle='rgba(0,0,0,0.60)'; ctx.fillRect(0,0,W,32);
   ctx.font='bold 13px monospace';
   ctx.fillStyle='#ffd866'; ctx.fillText('SCORE '+String(score).padStart(7,'0'),12,17);
   ctx.fillStyle='#ff9a3c'; ctx.fillText('HI '+String(hiScore).padStart(7,'0'),12,32);
@@ -803,9 +834,12 @@ function drawHUD() {
   if (buggy.shield)       { ctx.fillStyle='#5ef0ff'; ctx.fillText('SHLD',px,32); px+=44; }
   if (buggy.rapidFire)    { ctx.fillStyle='#ffd866'; ctx.fillText('RPID',px,32); px+=44; }
   if (buggy.missiles>0)   { ctx.fillStyle='#ff2bd6'; ctx.fillText('MSL×'+buggy.missiles,px,32); }
-  const barX=80,barY=44,barW=W-160,barH=6;
+  const barX=80,barY=24,barW=W-160,barH=6;
   ctx.fillStyle='#1a0900'; ctx.fillRect(barX,barY,barW,barH);
   ctx.fillStyle=pl.palette.groundTop; ctx.fillRect(barX,barY,barW*progress,barH);
+  // progress cursor: 2px gold vertical line at current buggy position
+  const cursorX = barX + barW * progress;
+  ctx.fillStyle='#ffd866'; ctx.fillRect(cursorX - 1, barY - 2, 2, barH + 4);
   ctx.fillStyle='#ff9a3c'; ctx.font='10px monospace';
   ctx.fillText('A',barX-14,barY+7); ctx.fillText('Z',barX+barW+4,barY+7);
   ctx.fillStyle='#c04020'; ctx.fillText('BOSS▸',barX+barW-36,barY-2);
