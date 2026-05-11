@@ -8,8 +8,8 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 // ── state ────────────────────────────────────────────────────────────────────
-const S = { LOADING:'LOADING', TITLE:'TITLE', PLANET_INTRO:'PLANET_INTRO',
-            PLAYING:'PLAYING', BOSS:'BOSS', DYING:'DYING', PAUSED:'PAUSED',
+const S = { TITLE:'TITLE', PLANET_INTRO:'PLANET_INTRO',
+            PLAYING:'PLAYING', BOSS:'BOSS', DYING:'DYING',
             PLANET_CLEAR:'PLANET_CLEAR', GAME_OVER:'GAME_OVER', VICTORY:'VICTORY' };
 let state = S.TITLE;
 
@@ -48,8 +48,11 @@ class AudioMan {
     this.master.connect(this.ctx.destination);
     this.sfxG = this.ctx.createGain(); this.sfxG.gain.value = 0.7;
     this.sfxG.connect(this.master);
+    this.musicG = this.ctx.createGain(); this.musicG.gain.value = 0.22;
+    this.musicG.connect(this.master);
     this.bufs = {};
     this.engineNode = null; this.engineGain = null; this._lfo = null;
+    this.musicSource = null; this.currentMusicKey = null; this.pendingMusic = null;
   }
 
   resume() { if (this.ctx?.state === 'suspended') this.ctx.resume(); }
@@ -64,6 +67,11 @@ class AudioMan {
         this.bufs[k] = await this.ctx.decodeAudioData(ab);
       } catch(e) { console.warn('audio load fail', url); }
     }));
+    if (this.pendingMusic) {
+      const { key, options } = this.pendingMusic;
+      this.pendingMusic = null;
+      this.startMusic(key, options);
+    }
   }
 
   sfx(key, { rate = 1, vol = 0.6 } = {}) {
@@ -90,7 +98,35 @@ class AudioMan {
 
   stopEngine() {
     try { this.engineNode?.stop(); this._lfo?.stop(); } catch(e) {}
-    this.engineNode = null; this._lfo = null;
+    try { this.engineGain?.disconnect(); } catch(e) {}
+    this.engineNode = null; this._lfo = null; this.engineGain = null;
+  }
+
+  startMusic(key, options = {}) {
+    if (!this.ctx) return;
+    const { vol = 0.22 } = options;
+    this.musicG.gain.value = vol;
+    if (!this.bufs[key]) {
+      this.pendingMusic = { key, options };
+      return;
+    }
+    if (this.musicSource && this.currentMusicKey === key) return;
+    this.stopMusic();
+    const s = this.ctx.createBufferSource();
+    s.buffer = this.bufs[key];
+    s.loop = true;
+    s.connect(this.musicG);
+    s.start();
+    this.musicSource = s;
+    this.currentMusicKey = key;
+  }
+
+  stopMusic() {
+    try { this.musicSource?.stop(); } catch(e) {}
+    try { this.musicSource?.disconnect(); } catch(e) {}
+    this.musicSource = null;
+    this.currentMusicKey = null;
+    this.pendingMusic = null;
   }
 
   setEngineSpeed(vx) {
@@ -100,7 +136,7 @@ class AudioMan {
 }
 
 const audio = new AudioMan();
-audio.load({ cannon: 'sounds/cannon.wav', boom: 'sounds/boom.wav' });
+audio.load({ cannon: 'sounds/cannon.wav', boom: 'sounds/boom.wav', music: 'sounds/music.ogg' });
 
 // ── asset loader ──────────────────────────────────────────────────────────────
 const IMGS = {};
@@ -189,6 +225,7 @@ function initGame() {
   gravityReversed = false;
   gravRevTimer = 0;
   initEnv();
+  audio.startMusic('music', { vol: 0.22 });
   state = S.PLANET_INTRO;
   Object.keys(keys).forEach(k => { keys[k] = false; });
   setTimeout(() => { if (state === S.PLANET_INTRO) state = S.PLAYING; }, 2500);
@@ -334,6 +371,7 @@ function killBuggy() {
   paused = false;
   lives--;
   if (lives <= 0) {
+    audio.stopMusic();
     state = S.GAME_OVER; hiScore = Math.max(hiScore,score); localStorage.setItem('mpr_hi',hiScore); return;
   }
   deathOnThisPlanet = true;
@@ -813,8 +851,9 @@ function defeatBoss() {
     planetIdx++; obstacles=generateObstacles(planetIdx);
     enemies=[]; bullets=[]; powerups=[]; scrollX=0; progress=0; deathOnThisPlanet=false;
     initEnv(); state=S.PLANET_CLEAR;
-    setTimeout(()=>{ state=S.PLANET_INTRO; setTimeout(()=>{ state=S.PLAYING; },2500); },3000);
+    setTimeout(()=>{ state=S.PLANET_INTRO; setTimeout(()=>{ if(state===S.PLANET_INTRO) state=S.PLAYING; },2500); },3000);
   } else {
+    audio.stopMusic();
     state=S.VICTORY; hiScore=Math.max(hiScore,score); localStorage.setItem('mpr_hi',hiScore);
   }
 }
@@ -1105,7 +1144,6 @@ function drawPaused() {
   ctx.textAlign = 'left';
 }
 
-initGame();
 loadAssets();  // fire-and-forget; sprites used if present, skipped if null
 requestAnimationFrame(loop);
 })();
