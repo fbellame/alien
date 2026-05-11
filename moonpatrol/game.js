@@ -55,6 +55,78 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
+// ── obstacles ─────────────────────────────────────────────────────────────────
+let obstacles = [];
+
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function generateObstacles(pIdx) {
+  const pl = PLANETS[pIdx];
+  const result = [];
+  let wx = 600;
+  const rng = mulberry32(pIdx * 9999 + 1);
+  while (wx < pl.patrolPx - 400) {
+    wx += 300 + rng() * 400;
+    const type = pl.obstacles[Math.floor(rng() * pl.obstacles.length)];
+    if (type==='crater'||type==='ravine'||type==='crevasse'||type==='void_gap') {
+      result.push({ type, x:wx, w: type==='ravine' ? 60+rng()*40 : 32+rng()*30, h:30 });
+    } else {
+      result.push({ type, x:wx, w:18, h: (28 + rng() * 20) | 0 });
+    }
+  }
+  return result;
+}
+
+function getGroundY(worldX) {
+  for (const o of obstacles) {
+    if ((o.type==='crater'||o.type==='ravine'||o.type==='crevasse'||o.type==='void_gap')
+        && worldX >= o.x && worldX <= o.x + o.w) return H + 100;
+  }
+  return GROUND_Y;
+}
+
+function aabb(a, b) {
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+
+function killBuggy() {
+  if (buggy.shield) { buggy.shield = false; return; }
+  lives--;
+  if (lives <= 0) {
+    state = S.GAME_OVER; hiScore = Math.max(hiScore,score); localStorage.setItem('mpr_hi',hiScore); return;
+  }
+  deathOnThisPlanet = true;
+  state = S.DYING;
+  setTimeout(() => { respawnBuggy(); state = S.PLAYING; }, 1200);
+}
+
+function respawnBuggy() {
+  buggy.x=80; buggy.y=GROUND_Y-BUGGY_H; buggy.vx=150; buggy.vy=0;
+  buggy.onGround=true; buggy.shield=false; buggy.sliding=false;
+  buggy.rapidFire=false; buggy.missiles=0; buggy.scoreMultiplier=1;
+}
+
+function drawObstacles() {
+  for (const o of obstacles) {
+    const sx = o.x - scrollX;
+    if (sx > W+50 || sx+o.w < -50) continue;
+    const pl = PLANETS[planetIdx];
+    if (o.type==='crater'||o.type==='ravine'||o.type==='crevasse'||o.type==='void_gap') {
+      ctx.fillStyle='#000'; ctx.fillRect(sx,GROUND_Y,o.w,H-GROUND_Y);
+    } else {
+      ctx.fillStyle=pl.palette.groundTop; ctx.fillRect(sx,GROUND_Y-o.h,o.w,o.h);
+      ctx.strokeStyle=pl.palette.star; ctx.lineWidth=1; ctx.strokeRect(sx,GROUND_Y-o.h,o.w,o.h);
+    }
+  }
+}
+
 // ── buggy ─────────────────────────────────────────────────────────────────────
 const BUGGY_W = 52, BUGGY_H = 28;
 let buggy;
@@ -62,6 +134,7 @@ let buggy;
 function initGame() {
   planetIdx = 0; score = 0; lives = 3; progress = 0; scrollX = 0; frame = 0;
   deathOnThisPlanet = false;
+  obstacles = generateObstacles(0);
   buggy = { x:80, y:GROUND_Y - BUGGY_H, vx:150, vy:0, onGround:true,
             sliding:false, slideTimer:0, shield:false,
             rapidFire:false, rapidTimer:0, missiles:0,
@@ -120,6 +193,15 @@ function updateBuggy(dt) {
   // ceiling
   if (buggy.y < 44) { buggy.y = 44; buggy.vy = Math.max(0, buggy.vy); }
 
+  // solid obstacle collision
+  for (const o of obstacles) {
+    const isSolid = o.type==='lunar_rock'||o.type==='rock_spire'||o.type==='ice_wall';
+    if (!isSolid) continue;
+    if (aabb({x:buggy.x,y:buggy.y,w:BUGGY_W,h:BUGGY_H},{x:o.x,y:GROUND_Y-o.h,w:o.w,h:o.h})) {
+      killBuggy(); return;
+    }
+  }
+
   // ice slide decay
   if (buggy.sliding) { buggy.slideTimer -= dt; if (buggy.slideTimer <= 0) buggy.sliding = false; }
 
@@ -128,9 +210,6 @@ function updateBuggy(dt) {
   if (buggy.scoreMultiplier > 1) { buggy.scoreMultTimer -= dt; if (buggy.scoreMultTimer <= 0) buggy.scoreMultiplier = 1; }
   buggy.fireTimer = Math.max(0, buggy.fireTimer - dt);
 }
-
-// placeholder — overridden in Task 5
-function getGroundY(worldX) { return GROUND_Y; }
 
 function drawBuggy() {
   if (state === S.DYING && Math.floor(frame / 4) % 2 === 0) return;
@@ -205,7 +284,7 @@ function draw() {
     default:
       ctx.fillStyle = pl.palette.sky; ctx.fillRect(0,0,W,H);
       drawStars(pl); drawGround(pl);
-      if (typeof drawObstacles === 'function') drawObstacles();
+      drawObstacles();
       if (typeof drawPowerups === 'function') drawPowerups();
       if (typeof drawEnemies === 'function') drawEnemies();
       if (typeof drawBullets === 'function') drawBullets();
