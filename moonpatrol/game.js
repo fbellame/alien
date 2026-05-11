@@ -41,6 +41,7 @@ const PLANETS = [
 // ── game variables ────────────────────────────────────────────────────────────
 let planetIdx, score, lives, hiScore, progress, scrollX, frame;
 let deathOnThisPlanet;
+let gravityReversed = false, gravRevTimer = 0;
 hiScore = parseInt(localStorage.getItem('mpr_hi') || '0');
 
 // ── input ────────────────────────────────────────────────────────────────────
@@ -106,9 +107,8 @@ function updateBuggy(dt) {
   }
 
   // apply gravity
-  if (!buggy.onGround) {
-    buggy.vy += grav * dt;
-  }
+  const effectiveGrav = gravityReversed ? -pl.gravity : pl.gravity;
+  if (!buggy.onGround) buggy.vy += effectiveGrav * dt;
 
   buggy.x += buggy.vx * dt;
   buggy.y += buggy.vy * dt;
@@ -122,6 +122,11 @@ function updateBuggy(dt) {
     }
     buggy.vy = 0;
     buggy.onGround = true;
+  }
+
+  // ceiling collision for gravity reversal
+  if (gravityReversed && buggy.y <= 32 + BUGGY_H) {
+    buggy.y = 32 + BUGGY_H; buggy.vy = 0; buggy.onGround = true;
   }
 
   // ceiling
@@ -807,7 +812,55 @@ function updateGlacialSentinel(dt) {
   }
 }
 
-function updateOverseer(dt) {}
+function updateOverseer(dt) {
+  const cx = scrollX + W * 0.65;
+  const cy = H / 2;
+  boss.x += (cx - boss.x - boss.w/2) * 2 * dt;
+  boss.y += (cy - boss.y - boss.h/2) * 2 * dt;
+
+  if (gravityReversed) {
+    gravRevTimer -= dt;
+    if (gravRevTimer <= 0) {
+      gravityReversed = false;
+      buggy.vy = 0;
+    }
+  }
+
+  if (boss.phase === 0) {
+    if (boss.attackTimer <= 0) {
+      boss.attackTimer = 3.5;
+      bullets.push({ x: scrollX + W, y: GROUND_Y - 50, vx: -300, vy: 0, w: W, h: 14, owner: 'enemy' });
+    }
+    if (boss.hp <= boss.maxHp * 0.75) { boss.phase = 1; boss.phaseTimer = 0; enemies = []; }
+  }
+
+  if (boss.phase === 1) {
+    if (boss.phaseTimer < 0.1 && enemies.length === 0) {
+      for (let i = 0; i < 4; i++) spawnEnemy('phantom_drone', boss.x + Math.random()*boss.w, boss.y + Math.random()*boss.h);
+    }
+    if (boss.attackTimer <= 0) { boss.attackTimer = 4; fireEnemy(boss); }
+    if (enemies.length === 0 && boss.phaseTimer > 0.5) { boss.phase = 2; boss.phaseTimer = 0; boss.attackTimer = 5; }
+  }
+
+  if (boss.phase === 2) {
+    if (boss.attackTimer <= 0 && !gravityReversed) {
+      boss.attackTimer = 5;
+      gravityReversed = true;
+      gravRevTimer = 5;
+      buggy.vy = -300;
+    }
+    if (boss.hp <= boss.maxHp * 0.25) { boss.phase = 3; boss.phaseTimer = 0; boss.attackTimer = 0; }
+  }
+
+  if (boss.phase === 3) {
+    if (boss.attackTimer <= 0) {
+      boss.attackTimer = 0.4;
+      const angle = Math.random() * Math.PI * 2;
+      bullets.push({ x: boss.x + boss.w/2, y: boss.y + boss.h/2,
+        vx: Math.cos(angle) * 320, vy: Math.sin(angle) * 320, w: 8, h: 8, owner: 'enemy' });
+    }
+  }
+}
 
 // ── planet clear overlay ──────────────────────────────────────────────────────
 function drawPlanetClear() {
