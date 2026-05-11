@@ -75,7 +75,7 @@ function initGame() {
   initEnv();
   state = S.PLANET_INTRO;
   Object.keys(keys).forEach(k => { keys[k] = false; });
-  setTimeout(() => { state = S.PLAYING; }, 2500);
+  setTimeout(() => { if (state === S.PLANET_INTRO) state = S.PLAYING; }, 2500);
 }
 
 function updateBuggy(dt) {
