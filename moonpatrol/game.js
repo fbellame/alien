@@ -102,6 +102,55 @@ class AudioMan {
 const audio = new AudioMan();
 audio.load({ cannon: 'sounds/cannon.wav', boom: 'sounds/boom.wav' });
 
+// ── asset loader ──────────────────────────────────────────────────────────────
+const IMGS = {};
+
+function keyWhite(img) {
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const gx = c.getContext('2d', { willReadFrequently: true });
+  gx.drawImage(img, 0, 0);
+  let id;
+  try { id = gx.getImageData(0, 0, c.width, c.height); } catch(e) { return img; }
+  const d = id.data;
+  if (d[3] < 250 || d[0] < 230) return img;
+  for (let i = 0; i < d.length; i += 4) {
+    const dist = 765 - d[i] - d[i+1] - d[i+2];
+    if (dist <= 8) { d[i+3] = 0; }
+    else if (dist <= 30) { d[i+3] = Math.floor(255 * (dist - 8) / 22); }
+  }
+  gx.putImageData(id, 0, 0);
+  return c;
+}
+
+async function loadImg(src) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => res(keyWhite(img));
+    img.onerror = () => res(null);
+    img.src = src;
+  });
+}
+
+async function loadAssets() {
+  const entries = [
+    ['buggy',              'images/buggy.png'],
+    ['ufo_scout',          'images/ufo.png'],
+    ['moon_tank',          'images/moon_tank.png'],
+    ['sand_crawler',       'images/sand_crawler.png'],
+    ['dive_bomber',        'images/dive_bomber.png'],
+    ['ice_drone',          'images/ice_drone.png'],
+    ['cryo_turret',        'images/cryo_turret.png'],
+    ['phantom_drone',      'images/phantom_drone.png'],
+    ['orbital_mine',       'images/orbital_mine.png'],
+    ['boss_lunar_fortress','images/boss_lunar_fortress.png'],
+    ['boss_storm_titan',   'images/boss_storm_titan.png'],
+    ['boss_glacial_sentinel','images/boss_glacial_sentinel.png'],
+    ['boss_overseer',      'images/boss_overseer.png'],
+  ];
+  await Promise.all(entries.map(async ([k, src]) => { IMGS[k] = await loadImg(src); }));
+}
+
 // ── game variables ────────────────────────────────────────────────────────────
 let planetIdx, score, lives, hiScore, progress, scrollX, frame;
 let deathOnThisPlanet;
@@ -220,15 +269,20 @@ function drawBuggy() {
   if (state === S.DYING && Math.floor(frame / 4) % 2 === 0) return;
   const b = buggy;
   const sx = b.x - scrollX;
-  ctx.fillStyle = buggy.shield ? '#5ef0ff' : '#ff9a3c';
-  ctx.fillRect(sx, b.y, BUGGY_W, BUGGY_H);
-  ctx.fillStyle = '#ffd866';
-  ctx.beginPath(); ctx.arc(sx + 12, b.y + BUGGY_H, 8, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(sx + 40, b.y + BUGGY_H, 8, 0, Math.PI*2); ctx.fill();
-  // gun barrels
-  ctx.fillStyle = '#ffd866';
-  ctx.fillRect(sx + BUGGY_W, b.y + 8, 10, 3);   // forward
-  ctx.fillRect(sx + 30, b.y - 8, 3, 10);          // upward
+  if (IMGS.buggy) {
+    if (buggy.shield) { ctx.globalAlpha = 0.7; ctx.fillStyle = '#5ef0ff'; ctx.fillRect(sx-2, b.y-2, BUGGY_W+4, BUGGY_H+4); ctx.globalAlpha = 1; }
+    ctx.drawImage(IMGS.buggy, sx, b.y, BUGGY_W, BUGGY_H);
+  } else {
+    ctx.fillStyle = buggy.shield ? '#5ef0ff' : '#ff9a3c';
+    ctx.fillRect(sx, b.y, BUGGY_W, BUGGY_H);
+    ctx.fillStyle = '#ffd866';
+    ctx.beginPath(); ctx.arc(sx + 12, b.y + BUGGY_H, 8, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx + 40, b.y + BUGGY_H, 8, 0, Math.PI*2); ctx.fill();
+    // gun barrels
+    ctx.fillStyle = '#ffd866';
+    ctx.fillRect(sx + BUGGY_W, b.y + 8, 10, 3);   // forward
+    ctx.fillRect(sx + 30, b.y - 8, 3, 10);          // upward
+  }
 }
 
 // ── obstacles ─────────────────────────────────────────────────────────────────
@@ -523,8 +577,12 @@ function drawEnemies() {
     if (!e.visible) continue;
     const sx = e.x - scrollX;
     if (sx > W+50 || sx+e.w < -50) continue;
-    ctx.fillStyle = (e.type.includes('ufo')||e.type.includes('drone')||e.type==='orbital_mine') ? '#ff2bd6' : '#7dffae';
-    ctx.fillRect(sx, e.y, e.w, e.h);
+    if (IMGS[e.type]) {
+      ctx.drawImage(IMGS[e.type], sx, e.y, e.w, e.h);
+    } else {
+      ctx.fillStyle = (e.type.includes('ufo')||e.type.includes('drone')||e.type==='orbital_mine') ? '#ff2bd6' : '#7dffae';
+      ctx.fillRect(sx, e.y, e.w, e.h);
+    }
     if (e.maxHp > 1) {
       ctx.fillStyle='#333'; ctx.fillRect(sx,e.y-6,e.w,4);
       ctx.fillStyle='#f44'; ctx.fillRect(sx,e.y-6,e.w*(e.hp/e.maxHp),4);
@@ -758,8 +816,13 @@ function defeatBoss() {
 function drawBoss() {
   if (!boss) return;
   const sx=boss.x-scrollX;
-  ctx.fillStyle='#7a3a00'; ctx.fillRect(sx,boss.y,boss.w,boss.h);
-  ctx.strokeStyle='#ff9a3c'; ctx.lineWidth=2; ctx.strokeRect(sx,boss.y,boss.w,boss.h);
+  const bossImgKey = 'boss_' + boss.type;
+  if (IMGS[bossImgKey]) {
+    ctx.drawImage(IMGS[bossImgKey], sx, boss.y, boss.w, boss.h);
+  } else {
+    ctx.fillStyle='#7a3a00'; ctx.fillRect(sx,boss.y,boss.w,boss.h);
+    ctx.strokeStyle='#ff9a3c'; ctx.lineWidth=2; ctx.strokeRect(sx,boss.y,boss.w,boss.h);
+  }
   // lunar fortress hatch indicator
   if (boss.type==='lunar_fortress' && boss.phase===0) {
     const hatchX = sx + boss.w*0.35, hatchW = boss.w*0.3, hatchH = 14;
@@ -1037,5 +1100,6 @@ function drawPaused() {
 }
 
 initGame();
+loadAssets();  // fire-and-forget; sprites used if present, skipped if null
 requestAnimationFrame(loop);
 })();
