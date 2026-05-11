@@ -69,6 +69,7 @@ function initGame() {
             rapidFire:false, rapidTimer:0, missiles:0,
             scoreMultiplier:1, scoreMultTimer:0, fireTimer:0 };
   state = S.PLANET_INTRO;
+  Object.keys(keys).forEach(k => { keys[k] = false; });
   setTimeout(() => { state = S.PLAYING; }, 2500);
 }
 
@@ -197,6 +198,7 @@ function aabb(a, b) {
 }
 
 function killBuggy() {
+  if (state === S.DYING || state === S.GAME_OVER) return;
   if (buggy.shield) { buggy.shield = false; return; }
   lives--;
   if (lives <= 0) {
@@ -208,9 +210,10 @@ function killBuggy() {
 }
 
 function respawnBuggy() {
-  buggy.x=80; buggy.y=GROUND_Y-BUGGY_H; buggy.vx=150; buggy.vy=0;
+  buggy.x=scrollX+80; buggy.y=GROUND_Y-BUGGY_H; buggy.vx=150; buggy.vy=0;
   buggy.onGround=true; buggy.shield=false; buggy.sliding=false;
   buggy.rapidFire=false; buggy.missiles=0; buggy.scoreMultiplier=1;
+  buggy.fireTimer=0;
 }
 
 function drawObstacles() {
