@@ -42,6 +42,7 @@ const PLANETS = [
 let planetIdx, score, lives, hiScore, progress, scrollX, frame;
 let deathOnThisPlanet;
 let gravityReversed = false, gravRevTimer = 0;
+let paused = false;
 hiScore = parseInt(localStorage.getItem('mpr_hi') || '0');
 
 // ── input ────────────────────────────────────────────────────────────────────
@@ -49,8 +50,7 @@ const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
-  if (e.code === 'KeyP' && state === S.PLAYING) state = S.PAUSED;
-  else if (e.code === 'KeyP' && state === S.PAUSED) state = S.PLAYING;
+  if (e.code === 'KeyP' && (state === S.PLAYING || state === S.BOSS)) paused = !paused;
   if ((e.code === 'Space' || e.code === 'Enter') && state === S.TITLE) initGame();
   if ((e.code === 'Space' || e.code === 'Enter') && (state === S.GAME_OVER || state === S.VICTORY)) initGame();
 });
@@ -62,7 +62,7 @@ let buggy;
 
 function initGame() {
   planetIdx = 0; score = 0; lives = 3; progress = 0; scrollX = 0; frame = 0;
-  deathOnThisPlanet = false;
+  deathOnThisPlanet = false; paused = false;
   obstacles = generateObstacles(0);
   bullets = [];
   enemies = []; spawnTimer = 0;
@@ -295,7 +295,7 @@ function loop(ts) {
 }
 
 function update(dt) {
-  if (state === S.PAUSED) return;
+  if (paused) return;
   if (state !== S.PLAYING && state !== S.BOSS && state !== S.DYING) return;
   if (typeof updateEnv === 'function') updateEnv(dt);
   updateBuggy(dt);
@@ -321,42 +321,38 @@ function draw() {
   const pl = PLANETS[planetIdx || 0];
   switch (state) {
     case S.TITLE:
-      ctx.fillStyle = pl.palette.sky; ctx.fillRect(0,0,W,H);
-      drawStars(pl);
-      drawTitleScreen(pl);
+      drawTitle();
       break;
     case S.GAME_OVER:
-      ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
-      drawGameOverScreen();
+      drawGameOver();
       break;
     case S.VICTORY:
-      ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
-      drawVictoryScreen();
+      drawVictory();
       break;
     case S.PLANET_CLEAR:
-      ctx.fillStyle = pl.palette.sky; ctx.fillRect(0,0,W,H);
-      drawStars(pl); drawGround(pl);
-      if (typeof drawPlanetClear === 'function') drawPlanetClear();
+      ctx.fillStyle = pl.palette.sky; ctx.fillRect(0, 0, W, H);
+      if (typeof drawStars === 'function') drawStars(pl);
+      if (typeof drawGround === 'function') drawGround(pl);
+      drawPlanetClear();
       break;
     case S.PLANET_INTRO:
-      ctx.fillStyle = pl.palette.sky; ctx.fillRect(0,0,W,H);
-      drawStars(pl);
-      drawPlanetIntro(pl);
+      if (typeof drawPlanetIntro === 'function') drawPlanetIntro();
       break;
-    default:
-      ctx.fillStyle = pl.palette.sky; ctx.fillRect(0,0,W,H);
-      drawStars(pl); drawGround(pl);
-      drawObstacles();
+    default: {
+      ctx.fillStyle = pl.palette.sky; ctx.fillRect(0, 0, W, H);
+      if (typeof drawStars === 'function') drawStars(pl);
+      if (typeof drawGround === 'function') drawGround(pl);
+      if (typeof drawObstacles === 'function') drawObstacles();
       if (typeof drawPowerups === 'function') drawPowerups();
       if (typeof drawEnemies === 'function') drawEnemies();
-      drawBullets();
-      drawBuggy();
+      if (typeof drawBullets === 'function') drawBullets();
+      if (typeof drawBuggy === 'function') drawBuggy();
       if (typeof drawParticles === 'function') drawParticles();
-      if (typeof drawBoss === 'function' && state === S.BOSS) drawBoss();
+      if (typeof drawBoss === 'function') drawBoss();
       if (typeof drawEnvOverlay === 'function') drawEnvOverlay();
+      if (paused) drawPaused();
       if (state !== S.DYING) drawHUD();
-      if (state === S.PAUSED) drawPausedScreen();
-      break;
+    }
   }
 }
 
@@ -896,68 +892,78 @@ function drawHUD() {
   ctx.fillStyle='#c04020'; ctx.fillText('BOSS▸',barX+barW-36,barY-2);
 }
 
-function drawTitleScreen(pl) {
-  ctx.fillStyle = pl.palette.text;
-  ctx.font = 'bold 48px monospace';
+function drawTitle() {
+  const pl = PLANETS[0];
+  ctx.fillStyle = pl.palette.sky; ctx.fillRect(0, 0, W, H);
+  if (typeof drawStars === 'function') drawStars(pl);
   ctx.textAlign = 'center';
-  ctx.fillText('MOON PATROL', W/2, H/2 - 60);
-  ctx.font = 'bold 28px monospace';
-  ctx.fillStyle = '#ff9a3c';
-  ctx.fillText('// RECON //', W/2, H/2 - 10);
-  ctx.font = '16px monospace';
-  ctx.fillStyle = '#ffd866';
-  ctx.fillText('PRESS SPACE OR ENTER TO START', W/2, H/2 + 50);
-  ctx.font = '13px monospace';
-  ctx.fillStyle = pl.palette.star;
-  ctx.fillText('HI-SCORE  ' + String(hiScore).padStart(7,'0'), W/2, H/2 + 90);
+  ctx.fillStyle = '#ffd866'; ctx.font = 'bold 48px monospace';
+  ctx.fillText('MOON PATROL', W/2, 220);
+  ctx.fillStyle = '#ff9a3c'; ctx.font = 'bold 18px monospace';
+  ctx.fillText('// RECON', W/2, 256);
+  if (Math.floor(Date.now() / 600) % 2 === 0) {
+    ctx.fillStyle = '#c8c8d0'; ctx.font = '14px monospace';
+    ctx.fillText('PRESS SPACE OR ENTER TO START', W/2, 340);
+  }
+  ctx.fillStyle = '#ff9a3c'; ctx.font = '12px monospace';
+  ctx.fillText('HI-SCORE  ' + String(hiScore).padStart(7,'0'), W/2, 380);
+  ctx.fillStyle = '#7a4000'; ctx.font = '11px monospace';
+  ctx.fillText('← → DRIVE   ↑ JUMP   Z FIRE   X MISSILE   P PAUSE', W/2, 430);
   ctx.textAlign = 'left';
 }
 
-function drawPlanetIntro(pl) {
-  ctx.fillStyle = pl.palette.text;
-  ctx.font = 'bold 36px monospace';
+function drawPlanetIntro() {
+  const pl = PLANETS[planetIdx];
+  ctx.fillStyle = pl.palette.sky; ctx.fillRect(0, 0, W, H);
+  if (typeof drawStars === 'function') drawStars(pl);
   ctx.textAlign = 'center';
-  ctx.fillText('PLANET: ' + pl.name, W/2, H/2 - 20);
-  ctx.font = '18px monospace';
-  ctx.fillStyle = '#ffd866';
-  ctx.fillText('PATROL COMMENCING...', W/2, H/2 + 30);
+  ctx.fillStyle = pl.palette.text; ctx.font = 'bold 52px monospace';
+  ctx.fillText(pl.name, W/2, H/2 - 20);
+  ctx.fillStyle = '#ff9a3c'; ctx.font = '13px monospace';
+  const descs = ['PATROL ZONE ALPHA — LOW GRAVITY', 'DUST STORM WARNING IN EFFECT', 'ICY TERRAIN — TRACTION REDUCED', 'GRAVITY ANOMALY DETECTED'];
+  ctx.fillText(descs[planetIdx] || '', W/2, H/2 + 30);
   ctx.textAlign = 'left';
 }
 
-function drawGameOverScreen() {
-  ctx.fillStyle = '#ff4040';
-  ctx.font = 'bold 56px monospace';
+function drawGameOver() {
+  ctx.fillStyle = 'rgba(0,0,0,0.80)'; ctx.fillRect(0, 0, W, H);
   ctx.textAlign = 'center';
-  ctx.fillText('GAME OVER', W/2, H/2 - 40);
-  ctx.font = '20px monospace';
-  ctx.fillStyle = '#ffd866';
-  ctx.fillText('SCORE ' + String(score).padStart(7,'0'), W/2, H/2 + 20);
-  ctx.fillText('PRESS SPACE TO RESTART', W/2, H/2 + 60);
+  ctx.fillStyle = '#c04020'; ctx.font = 'bold 42px monospace';
+  ctx.fillText('GAME OVER', W/2, H/2 - 50);
+  ctx.fillStyle = '#ffd866'; ctx.font = '18px monospace';
+  ctx.fillText('SCORE ' + String(score).padStart(7,'0'), W/2, H/2);
+  if (score >= hiScore && score > 0) { ctx.fillStyle = '#7dffae'; ctx.font = '14px monospace'; ctx.fillText('NEW HI-SCORE!', W/2, H/2 + 30); }
+  if (Math.floor(Date.now()/700) % 2 === 0) {
+    ctx.fillStyle = '#ff9a3c'; ctx.font = '13px monospace';
+    ctx.fillText('PRESS SPACE TO RETRY', W/2, H/2 + 70);
+  }
   ctx.textAlign = 'left';
 }
 
-function drawVictoryScreen() {
-  ctx.fillStyle = '#ffd866';
-  ctx.font = 'bold 48px monospace';
+function drawVictory() {
+  ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, 0, W, H);
   ctx.textAlign = 'center';
-  ctx.fillText('VICTORY!', W/2, H/2 - 40);
-  ctx.font = '20px monospace';
-  ctx.fillStyle = '#ff9a3c';
+  ctx.fillStyle = '#ffd866'; ctx.font = 'bold 38px monospace';
+  ctx.fillText('MISSION COMPLETE', W/2, H/2 - 60);
+  ctx.fillStyle = '#7dffae'; ctx.font = '18px monospace';
+  ctx.fillText('ALL PLANETS CLEARED', W/2, H/2 - 20);
+  ctx.fillStyle = '#ffd866'; ctx.font = '16px monospace';
   ctx.fillText('FINAL SCORE ' + String(score).padStart(7,'0'), W/2, H/2 + 20);
-  ctx.fillText('PRESS SPACE TO PLAY AGAIN', W/2, H/2 + 60);
+  if (score >= hiScore && score > 0) { ctx.fillStyle = '#ff2bd6'; ctx.font = '14px monospace'; ctx.fillText('★ NEW HI-SCORE ★', W/2, H/2 + 55); }
+  if (Math.floor(Date.now()/700) % 2 === 0) {
+    ctx.fillStyle = '#ff9a3c'; ctx.font = '13px monospace';
+    ctx.fillText('PRESS SPACE TO PLAY AGAIN', W/2, H/2 + 90);
+  }
   ctx.textAlign = 'left';
 }
 
-function drawPausedScreen() {
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#ffd866';
-  ctx.font = 'bold 40px monospace';
+function drawPaused() {
+  ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, W, H);
   ctx.textAlign = 'center';
-  ctx.fillText('PAUSED', W/2, H/2);
-  ctx.font = '16px monospace';
-  ctx.fillStyle = '#ff9a3c';
-  ctx.fillText('PRESS P TO RESUME', W/2, H/2 + 50);
+  ctx.fillStyle = '#ffd866'; ctx.font = 'bold 28px monospace';
+  ctx.fillText('PAUSED', W/2, H/2 - 20);
+  ctx.fillStyle = '#ff9a3c'; ctx.font = '13px monospace';
+  ctx.fillText('PRESS P TO RESUME', W/2, H/2 + 20);
   ctx.textAlign = 'left';
 }
 
