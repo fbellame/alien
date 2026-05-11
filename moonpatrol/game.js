@@ -410,10 +410,11 @@ function updateEnemies(dt) {
     const pl = PLANETS[planetIdx];
     spawnEnemy(pl.enemies[Math.floor(Math.random() * pl.enemies.length)], scrollX + W + 60);
   }
+  const speedMult = (PLANETS[planetIdx].envId === 'dust_storm' && envState.dustActive) ? 1.4 : 1.0;
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     if (e.x + e.w < scrollX - 60) { enemies.splice(i, 1); continue; }
-    e.x += e.vx * dt;
+    e.x += e.vx * speedMult * dt;
     if (!ENEMY_CFG[e.type].aerial) e.y = GROUND_Y - e.h;
     if (e.type === 'ufo_scout') {
       e.phaseTimer += dt;
@@ -524,11 +525,9 @@ function updateEnv(dt) {
       if (envState.dustActive) {
         envState.dustActive = false;
         envState.dustTimer = 12 + Math.random() * 6;
-        for (const e of enemies) e.vx = -ENEMY_CFG[e.type].spd;
       } else {
         envState.dustActive = true;
         envState.dustTimer = 4;
-        for (const e of enemies) e.vx *= 1.4;
       }
     }
     const target = envState.dustActive ? 0.70 : 0;
@@ -560,8 +559,9 @@ function spawnExplosion(x, y) {
   const colors = ['#ffd866','#ff9a3c','#c04020','#ffffff'];
   for (let i=0;i<14;i++) {
     const angle=Math.random()*Math.PI*2, spd=80+Math.random()*220;
+    const life = 0.5 + Math.random() * 0.4;
     particles.push({x,y,vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd-60,
-      color:colors[Math.floor(Math.random()*4)],life:0.5+Math.random()*0.4,maxLife:0.9,r:2+Math.random()*3});
+      color:colors[Math.floor(Math.random()*4)],life,maxLife:life,r:2+Math.random()*3});
   }
 }
 
@@ -662,11 +662,9 @@ function updateBoss(dt) {
 
 function bossWeakPointHit(bullet) {
   if (!boss) return false;
-  if (boss.type==='lunar_fortress') {
-    return boss.phase===0 && boss.hatchOpen;
-  }
+  if (boss.type==='lunar_fortress') return boss.hatchOpen;
   if (boss.type==='storm_titan') return boss.phase<2;
-  if (boss.type==='glacial_sentinel') return boss.phaseTimer>1;
+  if (boss.type==='glacial_sentinel') return true;
   if (boss.type==='the_overseer') return boss.phase!==1||enemies.length===0;
   return true;
 }
@@ -710,13 +708,13 @@ function drawBoss() {
 function updateLunarFortress(dt) {
   if (boss.x > scrollX+W*0.6) { boss.x+=boss.vx*dt; return; }
   boss.vx=0;
+  // hatch open/close cycle: 1s open, 1s closed — runs in all phases
+  boss.hatchTimer += dt;
+  if (boss.hatchTimer >= 1.0) {
+    boss.hatchOpen = !boss.hatchOpen;
+    boss.hatchTimer = 0;
+  }
   if (boss.phase===0) {
-    // hatch open/close cycle: 1s open, 1s closed
-    boss.hatchTimer += dt;
-    if (boss.hatchTimer >= 1.0) {
-      boss.hatchOpen = !boss.hatchOpen;
-      boss.hatchTimer = 0;
-    }
     if (boss.attackTimer<=0) {
       boss.attackTimer=3;
       spawnEnemy('ufo_scout',boss.x+boss.w*0.4,boss.y);
