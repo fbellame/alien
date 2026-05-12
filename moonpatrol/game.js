@@ -1073,19 +1073,73 @@ function drawTitle() {
   const pl = PLANETS[0];
   ctx.fillStyle = pl.palette.sky; ctx.fillRect(0, 0, W, H);
   if (typeof drawStars === 'function') drawStars(pl);
+
+  // ── title ──────────────────────────────────────────────────────────────────
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#ffd866'; ctx.font = 'bold 48px monospace';
-  ctx.fillText('MOON PATROL', W/2, 220);
-  ctx.fillStyle = '#ff9a3c'; ctx.font = 'bold 18px monospace';
-  ctx.fillText('// RECON', W/2, 256);
-  if (Math.floor(Date.now() / 600) % 2 === 0) {
-    ctx.fillStyle = '#c8c8d0'; ctx.font = '14px monospace';
-    ctx.fillText('PRESS SPACE OR ENTER TO START', W/2, 340);
-  }
+  ctx.fillStyle = '#ffd866'; ctx.font = 'bold 52px monospace';
+  ctx.fillText('MOON PATROL', W/2, 100);
+  ctx.fillStyle = '#ff9a3c'; ctx.font = 'bold 20px monospace';
+  ctx.fillText('// RECON', W/2, 130);
+
+  // ── divider ────────────────────────────────────────────────────────────────
+  ctx.strokeStyle = 'rgba(255,154,60,0.3)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(60, 148); ctx.lineTo(W - 60, 148); ctx.stroke();
+
+  // ── controls table ────────────────────────────────────────────────────────
+  ctx.fillStyle = '#ffd866'; ctx.font = 'bold 11px monospace';
+  ctx.fillText('CONTROLS', W/2, 172);
+
+  const controls = [
+    ['← / A  →/ D',  'Brake / Accelerate'],
+    ['↑ / W / SPACE', 'Jump  (hold for higher)'],
+    ['↓ / S',         'Downward thruster  (The Void only)'],
+    ['Z / CTRL',      'Fire — forward + upward cannon'],
+    ['X',             'Launch homing missile  (collect first)'],
+    ['P',             'Pause / Resume'],
+  ];
+  const colK = W/2 - 220, colV = W/2 - 10;
+  ctx.textAlign = 'left';
+  controls.forEach(([key, desc], i) => {
+    const y = 196 + i * 22;
+    ctx.fillStyle = '#ffd866'; ctx.font = '12px monospace';
+    ctx.fillText(key, colK, y);
+    ctx.fillStyle = 'rgba(255,154,60,0.7)'; ctx.font = '12px monospace';
+    ctx.fillText(desc, colV, y);
+  });
+
+  // ── divider ────────────────────────────────────────────────────────────────
+  ctx.strokeStyle = 'rgba(255,154,60,0.3)';
+  ctx.beginPath(); ctx.moveTo(60, 334); ctx.lineTo(W - 60, 334); ctx.stroke();
+
+  // ── planets strip ─────────────────────────────────────────────────────────
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,154,60,0.5)'; ctx.font = 'bold 10px monospace';
+  ctx.fillText('4 PLANETS  ·  4 BOSSES  ·  3 LIVES', W/2, 352);
+  const planets = [
+    { name:'MOON',    color:'#c8c8d0', sub:'LOW GRAVITY' },
+    { name:'MARS',    color:'#e06030', sub:'DUST STORM' },
+    { name:'EUROPA',  color:'#80c0ff', sub:'ICY SURFACE' },
+    { name:'THE VOID',color:'#b073ff', sub:'ZERO-G' },
+  ];
+  planets.forEach((p, i) => {
+    const x = 120 + i * 185;
+    ctx.fillStyle = p.color; ctx.font = 'bold 12px monospace';
+    ctx.fillText(p.name, x, 374);
+    ctx.fillStyle = 'rgba(255,154,60,0.5)'; ctx.font = '10px monospace';
+    ctx.fillText(p.sub, x, 388);
+  });
+
+  // ── divider ────────────────────────────────────────────────────────────────
+  ctx.strokeStyle = 'rgba(255,154,60,0.3)';
+  ctx.beginPath(); ctx.moveTo(60, 404); ctx.lineTo(W - 60, 404); ctx.stroke();
+
+  // ── hi-score + start prompt ───────────────────────────────────────────────
   ctx.fillStyle = '#ff9a3c'; ctx.font = '12px monospace';
-  ctx.fillText('HI-SCORE  ' + String(hiScore).padStart(7,'0'), W/2, 380);
-  ctx.fillStyle = '#7a4000'; ctx.font = '11px monospace';
-  ctx.fillText('← → DRIVE   ↑ JUMP   Z FIRE   X MISSILE   P PAUSE', W/2, 430);
+  ctx.fillText('HI-SCORE  ' + String(hiScore).padStart(7, '0'), W/2, 424);
+  if (Math.floor(Date.now() / 600) % 2 === 0) {
+    ctx.fillStyle = '#ffd866'; ctx.font = 'bold 14px monospace';
+    ctx.fillText('PRESS  SPACE  OR  ENTER  TO  START', W/2, 450);
+  }
   ctx.textAlign = 'left';
 }
 
