@@ -193,18 +193,20 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyP' && (state === S.PLAYING || state === S.BOSS)) paused = !paused;
   if ((e.code === 'Space' || e.code === 'Enter') && state === S.TITLE) initGame();
   if ((e.code === 'Space' || e.code === 'Enter') && (state === S.GAME_OVER || state === S.VICTORY)) initGame();
-  // variable jump — initiate on first press while on ground
+  // jump — full impulse on first press
   if (JUMP_KEYS.includes(e.code) && (state === S.PLAYING || state === S.BOSS) &&
       buggy && buggy.onGround && PLANETS[planetIdx].envId !== 'zero_g') {
-    buggy.vy = -210;
+    buggy.vy = -450;
     buggy.onGround = false;
     buggy.jumping = true;
-    buggy.jumpTimer = 0;
   }
 });
 window.addEventListener('keyup', e => {
   keys[e.code] = false;
-  if (JUMP_KEYS.includes(e.code) && buggy) buggy.jumping = false;
+  if (JUMP_KEYS.includes(e.code) && buggy) {
+    if (buggy.jumping && buggy.vy < 0) buggy.vy *= 0.35;  // cut jump short on early release
+    buggy.jumping = false;
+  }
 });
 
 // ── buggy ─────────────────────────────────────────────────────────────────────
@@ -249,7 +251,7 @@ function updateBuggy(dt) {
   }
 
   // acceleration / brake
-  const MIN_VX = 90, MAX_VX = 240;
+  const MIN_VX = 0, MAX_VX = 280;
   if (!buggy.sliding) {
     if (keys['ArrowRight'] || keys['KeyD']) buggy.vx = Math.min(MAX_VX, buggy.vx + 240 * dt);
     else if (keys['ArrowLeft'] || keys['KeyA']) buggy.vx = Math.max(MIN_VX, buggy.vx - 180 * dt);
@@ -257,14 +259,8 @@ function updateBuggy(dt) {
   }
   audio.setEngineSpeed(buggy.vx);
 
-  // variable jump — hold key to boost upward for up to 0.28s
-  const jumpKeyHeld = keys['ArrowUp'] || keys['KeyW'] || keys['Space'];
-  if (buggy.jumping && jumpKeyHeld && buggy.vy < 0 && buggy.jumpTimer < 0.28) {
-    buggy.jumpTimer += dt;
-    buggy.vy -= 950 * dt;   // extra upward force while holding
-  } else if (!jumpKeyHeld) {
-    buggy.jumping = false;
-  }
+  // clear jump state once ascending phase ends
+  if (buggy.jumping && buggy.vy >= 0) buggy.jumping = false;
 
   // gravity
   const effectiveGrav = gravityReversed ? -pl.gravity : pl.gravity;
@@ -382,8 +378,9 @@ function killBuggy() {
     state = S.GAME_OVER; hiScore = Math.max(hiScore,score); localStorage.setItem('mpr_hi',hiScore); return;
   }
   deathOnThisPlanet = true;
+  const wasBoss = (state === S.BOSS);
   state = S.DYING;
-  setTimeout(() => { respawnBuggy(); state = S.PLAYING; }, 1200);
+  setTimeout(() => { respawnBuggy(); state = wasBoss ? S.BOSS : S.PLAYING; }, 1200);
 }
 
 function respawnBuggy() {
@@ -479,7 +476,7 @@ function update(dt) {
   if (state === S.PLAYING) {
     scrollX += buggy.vx * dt;
     progress = Math.min(1, scrollX / PLANETS[planetIdx].patrolPx);
-    if (progress >= 1 && typeof startBoss === 'function') startBoss();
+    if (progress >= 1 && !boss && typeof startBoss === 'function') startBoss();
   }
   // fire input
   if (state===S.PLAYING||state===S.BOSS) {
