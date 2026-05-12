@@ -83,18 +83,7 @@ class AudioMan {
     s.onended = () => g.disconnect();
   }
 
-  startEngine() {
-    if (!this.ctx) return;
-    this.stopEngine();
-    const osc = this.ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 55;
-    const lfo = this.ctx.createOscillator(); lfo.frequency.value = 8;
-    const lfoGain = this.ctx.createGain(); lfoGain.gain.value = 6;
-    lfo.connect(lfoGain).connect(osc.frequency);
-    this.engineGain = this.ctx.createGain(); this.engineGain.gain.value = 0.08;
-    osc.connect(this.engineGain).connect(this.master);
-    osc.start(); lfo.start();
-    this.engineNode = osc; this._lfo = lfo;
-  }
+  startEngine() { /* engine hum disabled */ }
 
   stopEngine() {
     try { this.engineNode?.stop(); this._lfo?.stop(); } catch(e) {}
