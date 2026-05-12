@@ -20,15 +20,15 @@ const PTS = { ufo_scout:150, moon_tank:100, sand_crawler:100, dive_bomber:150,
 
 // ── planets ──────────────────────────────────────────────────────────────────
 const PLANETS = [
-  { id:'moon',   name:'MOON',   gravity:360, envId:'low_gravity',
+  { id:'moon',   name:'MOON',   gravity:520, envId:'low_gravity',
     palette:{ sky:'#0d1020', groundTop:'#3a3a50', groundFill:'#20202e', star:'#c0c8d8', text:'#c8c8d0' },
     enemies:['ufo_scout','moon_tank'], obstacles:['crater','lunar_rock'],
     patrolPx:8000, bossId:'lunar_fortress' },
-  { id:'mars',   name:'MARS',   gravity:560, envId:'dust_storm',
+  { id:'mars',   name:'MARS',   gravity:900, envId:'dust_storm',
     palette:{ sky:'#1e0800', groundTop:'#7a2a00', groundFill:'#3a1200', star:'#c07040', text:'#e06030' },
     enemies:['sand_crawler','dive_bomber'], obstacles:['ravine','rock_spire'],
     patrolPx:9000, bossId:'storm_titan' },
-  { id:'europa', name:'EUROPA', gravity:480, envId:'ice_slide',
+  { id:'europa', name:'EUROPA', gravity:720, envId:'ice_slide',
     palette:{ sky:'#050d1a', groundTop:'#5080b0', groundFill:'#102040', star:'#a0d0ff', text:'#80c0ff' },
     enemies:['ice_drone','cryo_turret'], obstacles:['crevasse','ice_wall'],
     patrolPx:9500, bossId:'glacial_sentinel' },
@@ -185,14 +185,27 @@ hiScore = parseInt(localStorage.getItem('mpr_hi') || '0');
 
 // ── input ────────────────────────────────────────────────────────────────────
 const keys = {};
+const JUMP_KEYS = ['ArrowUp','KeyW','Space'];
 window.addEventListener('keydown', e => {
+  if (keys[e.code]) return;  // ignore key-repeat
   keys[e.code] = true;
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
   if (e.code === 'KeyP' && (state === S.PLAYING || state === S.BOSS)) paused = !paused;
   if ((e.code === 'Space' || e.code === 'Enter') && state === S.TITLE) initGame();
   if ((e.code === 'Space' || e.code === 'Enter') && (state === S.GAME_OVER || state === S.VICTORY)) initGame();
+  // variable jump — initiate on first press while on ground
+  if (JUMP_KEYS.includes(e.code) && (state === S.PLAYING || state === S.BOSS) &&
+      buggy && buggy.onGround && PLANETS[planetIdx].envId !== 'zero_g') {
+    buggy.vy = -210;
+    buggy.onGround = false;
+    buggy.jumping = true;
+    buggy.jumpTimer = 0;
+  }
 });
-window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('keyup', e => {
+  keys[e.code] = false;
+  if (JUMP_KEYS.includes(e.code) && buggy) buggy.jumping = false;
+});
 
 // ── buggy ─────────────────────────────────────────────────────────────────────
 const BUGGY_W = 52, BUGGY_H = 28;
@@ -208,6 +221,7 @@ function initGame() {
   particles = []; powerups = [];
   boss = null;
   buggy = { x:80, y:GROUND_Y - BUGGY_H, vx:150, vy:0, onGround:true,
+            jumping:false, jumpTimer:0,
             sliding:false, slideTimer:0, shield:false,
             rapidFire:false, rapidTimer:0, missiles:0,
             scoreMultiplier:1, scoreMultTimer:0, fireTimer:0 };
@@ -243,13 +257,16 @@ function updateBuggy(dt) {
   }
   audio.setEngineSpeed(buggy.vx);
 
-  // jump
-  if ((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && buggy.onGround && pl.envId !== 'zero_g') {
-    buggy.vy = pl.envId === 'low_gravity' ? -380 : -420;
-    buggy.onGround = false;
+  // variable jump — hold key to boost upward for up to 0.28s
+  const jumpKeyHeld = keys['ArrowUp'] || keys['KeyW'] || keys['Space'];
+  if (buggy.jumping && jumpKeyHeld && buggy.vy < 0 && buggy.jumpTimer < 0.28) {
+    buggy.jumpTimer += dt;
+    buggy.vy -= 950 * dt;   // extra upward force while holding
+  } else if (!jumpKeyHeld) {
+    buggy.jumping = false;
   }
 
-  // apply gravity
+  // gravity
   const effectiveGrav = gravityReversed ? -pl.gravity : pl.gravity;
   if (!buggy.onGround) buggy.vy += effectiveGrav * dt;
 
@@ -265,6 +282,7 @@ function updateBuggy(dt) {
     }
     buggy.vy = 0;
     buggy.onGround = true;
+    buggy.jumping = false;
   }
 
   // ceiling collision for gravity reversal
@@ -370,7 +388,8 @@ function killBuggy() {
 
 function respawnBuggy() {
   buggy.x=scrollX+80; buggy.y=GROUND_Y-BUGGY_H; buggy.vx=150; buggy.vy=0;
-  buggy.onGround=true; buggy.shield=false; buggy.sliding=false;
+  buggy.onGround=true; buggy.jumping=false; buggy.jumpTimer=0;
+  buggy.shield=false; buggy.sliding=false;
   buggy.rapidFire=false; buggy.missiles=0; buggy.scoreMultiplier=1;
   buggy.fireTimer=0;
   gravityReversed = false;
